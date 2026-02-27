@@ -1,0 +1,18 @@
+{
+  "name": "Pair Designer",
+  "id": "pair-designer-ai-review",
+  "api": "1.0.0",
+  "main": "plugin/code.js",
+  "ui": "plugin/ui.html",
+  "editorType": ["figma"],
+  "networkAccess": {
+    "allowedDomains": [
+      "https://api.anthropic.com",
+      "https://api.openai.com",
+      "https://localhost:3000"
+    ],
+    "reasoning": "LLM API calls for design review"
+  },
+  "documentAccess": "dynamic-page",
+  "permissions": []
+}
