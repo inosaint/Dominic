@@ -38,7 +38,7 @@ export interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
   reviewItems?: ReviewItem[];
-  annotationResult?: { written: number; skipped: number };
+  annotationResult?: { written: number; skipped: number; annotationsSupported: boolean };
   timestamp: number;
 }
 

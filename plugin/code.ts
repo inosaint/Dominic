@@ -85,23 +85,38 @@ figma.ui.onmessage = async (msg: UIToPluginMessage) => {
 
       case 'WRITE_ANNOTATIONS': {
         const selection = figma.currentPage.selection;
-        const categoryId = await getOrCreateAIReviewCategory();
 
-        // Auto-clear previous annotations if settings say so
-        const settings = await figma.clientStorage.getAsync(STORAGE_KEY);
-        if (settings?.autoClearPrevious && selection.length > 0) {
-          await clearAIAnnotations(selection[0], categoryId);
+        // Try to write annotations — gracefully degrade on free plans
+        // where the annotations API may not be available (requires Dev Mode)
+        try {
+          const categoryId = await getOrCreateAIReviewCategory();
+
+          const settings = await figma.clientStorage.getAsync(STORAGE_KEY);
+          if (settings?.autoClearPrevious && selection.length > 0) {
+            await clearAIAnnotations(selection[0], categoryId);
+          }
+
+          const { written, skipped } = await writeAnnotations(
+            msg.payload.reviewItems,
+            categoryId
+          );
+
+          figma.ui.postMessage({
+            type: 'ANNOTATIONS_WRITTEN',
+            payload: { written, skipped, annotationsSupported: true },
+          });
+        } catch {
+          // Annotations API not available (likely free plan without Dev Mode)
+          // The UI already shows feedback in the chat window as a fallback
+          figma.ui.postMessage({
+            type: 'ANNOTATIONS_WRITTEN',
+            payload: {
+              written: 0,
+              skipped: msg.payload.reviewItems.length,
+              annotationsSupported: false,
+            },
+          });
         }
-
-        const { written, skipped } = await writeAnnotations(
-          msg.payload.reviewItems,
-          categoryId
-        );
-
-        figma.ui.postMessage({
-          type: 'ANNOTATIONS_WRITTEN',
-          payload: { written, skipped },
-        });
         break;
       }
 

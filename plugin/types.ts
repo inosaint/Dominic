@@ -46,7 +46,7 @@ export type UIToPluginMessage =
 export type PluginToUIMessage =
   | { type: 'SELECTION_DATA'; payload: SelectionInfo | null }
   | { type: 'DESIGN_DATA_READY'; payload: { json: object; screenshot?: string } }
-  | { type: 'ANNOTATIONS_WRITTEN'; payload: { written: number; skipped: number } }
+  | { type: 'ANNOTATIONS_WRITTEN'; payload: { written: number; skipped: number; annotationsSupported: boolean } }
   | { type: 'ANNOTATIONS_CLEARED' }
   | { type: 'SETTINGS_LOADED'; payload: Settings }
   | { type: 'ERROR'; payload: { message: string } };
