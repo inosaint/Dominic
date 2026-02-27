@@ -25,12 +25,15 @@ export interface ReviewItem {
   severity: 'suggestion' | 'warning' | 'issue';
 }
 
+export type OutputMode = 'annotations' | 'sticky-notes' | 'both';
+
 export interface Settings {
   provider: 'anthropic' | 'openai';
   apiKey: string;
   model: string;
   includeScreenshot: boolean;
   autoClearPrevious: boolean;
+  outputMode: OutputMode;
 }
 
 // iframe → Plugin messages
@@ -47,6 +50,7 @@ export type PluginToUIMessage =
   | { type: 'SELECTION_DATA'; payload: SelectionInfo | null }
   | { type: 'DESIGN_DATA_READY'; payload: { json: object; screenshot?: string } }
   | { type: 'ANNOTATIONS_WRITTEN'; payload: { written: number; skipped: number; annotationsSupported: boolean } }
+  | { type: 'STICKY_NOTES_WRITTEN'; payload: { created: number } }
   | { type: 'ANNOTATIONS_CLEARED' }
   | { type: 'SETTINGS_LOADED'; payload: Settings }
   | { type: 'ERROR'; payload: { message: string } };

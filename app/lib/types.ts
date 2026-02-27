@@ -25,12 +25,15 @@ export interface ReviewItem {
   severity: 'suggestion' | 'warning' | 'issue';
 }
 
+export type OutputMode = 'annotations' | 'sticky-notes' | 'both';
+
 export interface Settings {
   provider: 'anthropic' | 'openai';
   apiKey: string;
   model: string;
   includeScreenshot: boolean;
   autoClearPrevious: boolean;
+  outputMode: OutputMode;
 }
 
 export interface ChatMessage {

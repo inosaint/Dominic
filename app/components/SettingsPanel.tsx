@@ -1,6 +1,6 @@
 'use client';
 
-import { Settings } from '../lib/types';
+import { Settings, OutputMode } from '../lib/types';
 
 interface Props {
   settings: Settings;
@@ -91,6 +91,26 @@ export default function SettingsPanel({
           />
         </div>
 
+        {/* Output mode */}
+        <div>
+          <label className="block text-11 text-figma-text-secondary mb-1">
+            Output Mode
+          </label>
+          <select
+            value={settings.outputMode || 'sticky-notes'}
+            onChange={(e) => update({ outputMode: e.target.value as OutputMode })}
+            className="w-full bg-figma-surface border border-figma-border rounded px-2 py-1.5
+                       text-12 text-figma-text focus:outline-none focus:border-figma-accent"
+          >
+            <option value="sticky-notes">Sticky notes on canvas</option>
+            <option value="annotations">Annotations (requires paid plan)</option>
+            <option value="both">Both</option>
+          </select>
+          <p className="text-11 text-figma-text-tertiary mt-1">
+            Sticky notes work on all plans. Annotations require Dev Mode (paid).
+          </p>
+        </div>
+
         {/* Toggles */}
         <div className="space-y-2">
           <label className="flex items-center gap-2 cursor-pointer">
@@ -114,22 +134,22 @@ export default function SettingsPanel({
               className="rounded border-figma-border"
             />
             <span className="text-12 text-figma-text">
-              Auto-clear previous annotations
+              Auto-clear previous review output
             </span>
           </label>
         </div>
 
-        {/* Clear annotations */}
+        {/* Clear all review output */}
         <div className="pt-2 border-t border-figma-border">
           <button
             onClick={onClearAnnotations}
             className="w-full py-1.5 text-12 rounded border border-figma-error text-figma-error
                        hover:bg-figma-error hover:text-white transition-colors"
           >
-            Clear all AI annotations
+            Clear all AI review output
           </button>
           <p className="text-11 text-figma-text-tertiary mt-1">
-            Removes all &ldquo;AI Review&rdquo; annotations from the selected frame.
+            Removes AI Review annotations and sticky notes from the selected frame.
           </p>
         </div>
       </div>

@@ -19,6 +19,7 @@ const DEFAULT_SETTINGS: Settings = {
   model: 'claude-sonnet-4-20250514',
   includeScreenshot: true,
   autoClearPrevious: true,
+  outputMode: 'sticky-notes',
 };
 
 export default function Home() {
@@ -64,13 +65,31 @@ export default function Home() {
           return updated;
         });
       }),
+      onPluginMessage('STICKY_NOTES_WRITTEN', (msg) => {
+        setMessages((prev) => {
+          const updated = [...prev];
+          for (let i = updated.length - 1; i >= 0; i--) {
+            if (updated[i].role === 'assistant' && updated[i].reviewItems) {
+              const existing = updated[i].content;
+              updated[i] = {
+                ...updated[i],
+                content: existing.includes('sticky note')
+                  ? existing
+                  : `${existing} ${msg.payload.created} sticky note${msg.payload.created !== 1 ? 's' : ''} added to canvas.`,
+              };
+              break;
+            }
+          }
+          return updated;
+        });
+      }),
       onPluginMessage('ANNOTATIONS_CLEARED', () => {
         setMessages((prev) => [
           ...prev,
           {
             id: crypto.randomUUID(),
             role: 'assistant',
-            content: 'AI Review annotations cleared.',
+            content: 'AI review output cleared.',
             timestamp: Date.now(),
           },
         ]);
