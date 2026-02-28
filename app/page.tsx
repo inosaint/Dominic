@@ -257,7 +257,10 @@ export default function Home() {
     <div className="relative flex flex-col h-[480px] w-[320px] bg-figma-bg">
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-figma-border shrink-0">
-        <h1 className="text-13 font-semibold text-figma-text">Pair Designer</h1>
+        <div className="flex items-center gap-2">
+          <img src="/icon.svg" alt="Pair Designer" className="w-5 h-5 rounded" />
+          <h1 className="text-13 font-semibold text-figma-text">Pair Designer</h1>
+        </div>
         <button
           onClick={() => setShowSettings(!showSettings)}
           className="text-figma-text-secondary hover:text-figma-text text-[16px] leading-none p-0.5"
