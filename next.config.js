@@ -8,7 +8,7 @@ const nextConfig = {
         headers: [
           {
             key: 'Content-Security-Policy',
-            value: "frame-ancestors 'self' https://www.figma.com https://figma.com",
+            value: "frame-ancestors *",
           },
         ],
       },
