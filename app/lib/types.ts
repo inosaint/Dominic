@@ -59,6 +59,11 @@ export interface ChatMessage {
   agentEmoji?: string;
 }
 
+export interface ConversationTurn {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
 export interface ReviewRequest {
   designData: object;
   screenshot?: string;
@@ -68,9 +73,12 @@ export interface ReviewRequest {
   model: string;
   agentId?: string;
   agentSystemPrompt?: string;
+  conversationHistory?: ConversationTurn[];
+  chatMode?: boolean;
 }
 
 export interface ReviewResponse {
   items: ReviewItem[];
+  text?: string;
   error?: string;
 }

@@ -1,5 +1,7 @@
 // OpenAI API provider
 
+import { ConversationTurn } from '../types';
+
 export async function callOpenAI(params: {
   apiKey: string;
   model: string;
@@ -7,24 +9,51 @@ export async function callOpenAI(params: {
   screenshot?: string;
   userPrompt: string;
   systemPrompt: string;
+  conversationHistory?: ConversationTurn[];
 }): Promise<string> {
-  const { apiKey, model, designData, screenshot, userPrompt, systemPrompt } = params;
+  const { apiKey, model, designData, screenshot, userPrompt, systemPrompt, conversationHistory } = params;
 
-  const userMessage = `DESIGN DATA:\n${JSON.stringify(designData)}\n\nUSER QUESTION:\n${userPrompt}`;
+  const designContext = `DESIGN DATA:\n${JSON.stringify(designData)}`;
 
-  const content: any[] = [];
+  // Build messages array
+  const messages: any[] = [
+    { role: 'system', content: systemPrompt },
+  ];
 
-  if (screenshot) {
-    content.push({
-      type: 'image_url',
-      image_url: { url: `data:image/png;base64,${screenshot}` },
-    });
+  if (conversationHistory && conversationHistory.length > 0) {
+    // First message includes design data context
+    const firstUserContent: any[] = [];
+    if (screenshot) {
+      firstUserContent.push({
+        type: 'image_url',
+        image_url: { url: `data:image/png;base64,${screenshot}` },
+      });
+    }
+    firstUserContent.push({ type: 'text', text: `${designContext}\n\nUSER QUESTION:\n${conversationHistory[0].content}` });
+    messages.push({ role: 'user', content: firstUserContent });
+
+    // Add remaining history turns
+    for (let i = 1; i < conversationHistory.length; i++) {
+      messages.push({
+        role: conversationHistory[i].role,
+        content: conversationHistory[i].content,
+      });
+    }
+
+    // Add current user message
+    messages.push({ role: 'user', content: userPrompt });
+  } else {
+    // Single-turn: same as before
+    const content: any[] = [];
+    if (screenshot) {
+      content.push({
+        type: 'image_url',
+        image_url: { url: `data:image/png;base64,${screenshot}` },
+      });
+    }
+    content.push({ type: 'text', text: `${designContext}\n\nUSER QUESTION:\n${userPrompt}` });
+    messages.push({ role: 'user', content });
   }
-
-  content.push({
-    type: 'text',
-    text: userMessage,
-  });
 
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
@@ -35,11 +64,7 @@ export async function callOpenAI(params: {
     body: JSON.stringify({
       model,
       max_tokens: 4096,
-      response_format: { type: 'json_object' },
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content },
-      ],
+      messages,
     }),
   });
 

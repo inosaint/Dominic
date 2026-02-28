@@ -10,10 +10,22 @@ import { getAgent, BUILT_IN_AGENTS } from '../../lib/agents';
 // Fallback system prompt when no agent is specified
 const FALLBACK_SYSTEM_PROMPT = BUILT_IN_AGENTS[0].systemPrompt;
 
+// Addendum for chat mode — tells the agent it can respond conversationally
+const CHAT_MODE_ADDENDUM = `
+
+CHAT MODE:
+You are in a conversation with the user. You may respond in two ways:
+1. If the user asks for a review or analysis, respond with the JSON array as specified above.
+2. If the user asks a follow-up question, wants clarification, or is having a discussion, respond in plain text. Be helpful, specific, and stay in character.
+Do NOT wrap plain text responses in JSON. Just write naturally.`;
+
 export async function POST(request: NextRequest) {
   try {
     const body: ReviewRequest = await request.json();
-    const { designData, screenshot, userPrompt, provider, apiKey, model, agentId, agentSystemPrompt } = body;
+    const {
+      designData, screenshot, userPrompt, provider, apiKey, model,
+      agentId, agentSystemPrompt, conversationHistory, chatMode,
+    } = body;
 
     if (!apiKey) {
       return NextResponse.json(
@@ -40,6 +52,10 @@ export async function POST(request: NextRequest) {
       systemPrompt = FALLBACK_SYSTEM_PROMPT;
     }
 
+    if (chatMode) {
+      systemPrompt += CHAT_MODE_ADDENDUM;
+    }
+
     let rawResponse: string;
 
     if (provider === 'openai') {
@@ -50,6 +66,7 @@ export async function POST(request: NextRequest) {
         screenshot,
         userPrompt: userPrompt || 'Do a comprehensive design review.',
         systemPrompt,
+        conversationHistory,
       });
     } else {
       rawResponse = await callAnthropic({
@@ -59,12 +76,13 @@ export async function POST(request: NextRequest) {
         screenshot,
         userPrompt: userPrompt || 'Do a comprehensive design review.',
         systemPrompt,
+        conversationHistory,
       });
     }
 
-    const items = parseReviewResponse(rawResponse);
+    const result = parseReviewResponse(rawResponse);
 
-    return NextResponse.json({ items });
+    return NextResponse.json({ items: result.items, text: result.text });
   } catch (err: any) {
     return NextResponse.json(
       { error: err?.message || 'An unexpected error occurred.' },

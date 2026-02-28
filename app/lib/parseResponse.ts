@@ -11,6 +11,8 @@ const VALID_CATEGORIES = new Set([
   'layout',
   'consistency',
   'interaction',
+  'i18n',
+  'tokens',
   'general',
 ]);
 
@@ -57,16 +59,20 @@ function validateItem(item: any): ReviewItem | null {
   };
 }
 
-export function parseReviewResponse(rawText: string): ReviewItem[] {
+export interface ParseResult {
+  items: ReviewItem[];
+  text?: string;
+}
+
+export function parseReviewResponse(rawText: string): ParseResult {
   const jsonStr = extractJSON(rawText);
 
   let parsed: any;
   try {
     parsed = JSON.parse(jsonStr);
   } catch {
-    throw new Error(
-      'Failed to parse LLM response as JSON. The model returned an unexpected format.'
-    );
+    // Not JSON — treat as plain text (conversational reply)
+    return { items: [], text: rawText.trim() };
   }
 
   const items = Array.isArray(parsed) ? parsed : [];
@@ -76,10 +82,9 @@ export function parseReviewResponse(rawText: string): ReviewItem[] {
     .filter((item): item is ReviewItem => item !== null);
 
   if (validated.length === 0 && items.length > 0) {
-    throw new Error(
-      'LLM returned feedback items but none had the required fields (nodeId, feedback).'
-    );
+    // Had items but none valid — return as text
+    return { items: [], text: rawText.trim() };
   }
 
-  return validated;
+  return { items: validated };
 }

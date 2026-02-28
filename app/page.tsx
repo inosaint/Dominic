@@ -6,10 +6,11 @@ import {
   ChatMessage,
   Settings,
   ReviewItem,
+  ConversationTurn,
   CustomAgentConfig,
 } from './lib/types';
 import { sendToPlugin, onPluginMessage } from './lib/figmaAPI';
-import { getAgent, getAllAgents, BUILT_IN_AGENTS, CustomAgent } from './lib/agents';
+import { getAgent, getAllAgents, BUILT_IN_AGENTS, CustomAgent, ReviewAgent } from './lib/agents';
 import SelectionInfo from './components/SelectionInfo';
 import ChatWindow from './components/ChatWindow';
 import QuickPrompts from './components/QuickPrompts';
@@ -48,6 +49,11 @@ export default function Home() {
   const [showSettings, setShowSettings] = useState(false);
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [highlightedMarker, setHighlightedMarker] = useState<number | null>(null);
+
+  // Chat mode state
+  const [activeAgent, setActiveAgent] = useState<ReviewAgent | null>(null);
+  const chatDesignData = useRef<{ json: object; screenshot?: string } | null>(null);
+  const chatHistory = useRef<ConversationTurn[]>([]);
 
   // Ref to hold pending design data for the current review
   const pendingReview = useRef<{
@@ -184,14 +190,16 @@ export default function Home() {
     [settings.includeScreenshot]
   );
 
-  // --- Call a single agent API ---
-  const callAgentAPI = useCallback(
+  // --- Call the review API ---
+  const callReviewAPI = useCallback(
     async (
       designData: { json: object; screenshot?: string },
       prompt: string,
       agentId?: string,
-      agentSystemPrompt?: string
-    ): Promise<ReviewItem[]> => {
+      agentSystemPrompt?: string,
+      conversationHistory?: ConversationTurn[],
+      chatMode?: boolean
+    ): Promise<{ items: ReviewItem[]; text?: string }> => {
       const response = await fetch('/api/review', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -204,17 +212,19 @@ export default function Home() {
           model: settings.model,
           agentId,
           agentSystemPrompt,
+          conversationHistory,
+          chatMode,
         }),
       });
 
       const result = await response.json();
       if (result.error) throw new Error(result.error);
-      return result.items || [];
+      return { items: result.items || [], text: result.text };
     },
     [settings.provider, settings.apiKey, settings.model]
   );
 
-  // --- Run a single-agent review ---
+  // --- Run a single-agent review (one-shot) ---
   const runReview = useCallback(
     async (prompt: string, agentId?: string) => {
       if (!selection) return;
@@ -237,7 +247,6 @@ export default function Home() {
       const customAgents = toCustomAgents(settings.customAgents);
       const agent = agentId ? getAgent(agentId, customAgents) : undefined;
 
-      // Add user message
       setMessages((prev) => [
         ...prev,
         {
@@ -250,23 +259,25 @@ export default function Home() {
 
       try {
         const designData = await requestDesignData(prompt);
-        const reviewItems = await callAgentAPI(
+        const { items: reviewItems, text } = await callReviewAPI(
           designData,
           prompt,
           agent?.builtIn ? agent.id : undefined,
           agent && !agent.builtIn ? agent.systemPrompt : undefined
         );
 
+        const content = text
+          || (reviewItems.length > 0
+            ? `Found ${reviewItems.length} item${reviewItems.length !== 1 ? 's' : ''} to review.`
+            : 'No issues found — the design looks good!');
+
         setMessages((prev) => [
           ...prev,
           {
             id: createMessageId(),
             role: 'assistant',
-            content:
-              reviewItems.length > 0
-                ? `Found ${reviewItems.length} item${reviewItems.length !== 1 ? 's' : ''} to review.`
-                : 'No issues found — the design looks good!',
-            reviewItems,
+            content,
+            reviewItems: reviewItems.length > 0 ? reviewItems : undefined,
             timestamp: Date.now(),
             agentId: agent?.id,
             agentName: agent?.name,
@@ -297,7 +308,7 @@ export default function Home() {
         setIsLoading(false);
       }
     },
-    [selection, settings, requestDesignData, callAgentAPI]
+    [selection, settings, requestDesignData, callReviewAPI]
   );
 
   // --- Run all agents in parallel ---
@@ -321,7 +332,7 @@ export default function Home() {
       setIsLoading(true);
 
       const customAgents = toCustomAgents(settings.customAgents);
-      const allAgents = getAllAgents(customAgents);
+      const allAgentsList = getAllAgents(customAgents);
 
       setMessages((prev) => [
         ...prev,
@@ -334,38 +345,38 @@ export default function Home() {
       ]);
 
       try {
-        // Get design data once
         const designData = await requestDesignData(prompt);
 
-        // Fire all agents in parallel
         const results = await Promise.allSettled(
-          allAgents.map((agent) =>
-            callAgentAPI(
+          allAgentsList.map((agent) =>
+            callReviewAPI(
               designData,
               prompt,
               agent.builtIn ? agent.id : undefined,
               !agent.builtIn ? agent.systemPrompt : undefined
-            ).then((items) => ({ agent, items }))
+            ).then((result) => ({ agent, ...result }))
           )
         );
 
-        // Collect all review items for annotations
         let allItems: ReviewItem[] = [];
 
-        for (const result of results) {
+        for (let idx = 0; idx < results.length; idx++) {
+          const result = results[idx];
+          const agent = allAgentsList[idx];
           if (result.status === 'fulfilled') {
-            const { agent, items } = result.value;
+            const { items, text } = result.value;
             allItems = allItems.concat(items);
+            const content = text
+              || (items.length > 0
+                ? `Found ${items.length} item${items.length !== 1 ? 's' : ''}.`
+                : 'No issues found from my perspective.');
             setMessages((prev) => [
               ...prev,
               {
                 id: createMessageId(),
                 role: 'assistant',
-                content:
-                  items.length > 0
-                    ? `Found ${items.length} item${items.length !== 1 ? 's' : ''}.`
-                    : 'No issues found from my perspective.',
-                reviewItems: items,
+                content,
+                reviewItems: items.length > 0 ? items : undefined,
                 timestamp: Date.now(),
                 agentId: agent.id,
                 agentName: agent.name,
@@ -373,8 +384,6 @@ export default function Home() {
               },
             ]);
           } else {
-            const agentIndex = results.indexOf(result);
-            const agent = allAgents[agentIndex];
             setMessages((prev) => [
               ...prev,
               {
@@ -382,9 +391,9 @@ export default function Home() {
                 role: 'assistant',
                 content: `Error: ${result.reason?.message || 'Something went wrong.'}`,
                 timestamp: Date.now(),
-                agentId: agent?.id,
-                agentName: agent?.name,
-                agentEmoji: agent?.emoji,
+                agentId: agent.id,
+                agentName: agent.name,
+                agentEmoji: agent.emoji,
               },
             ]);
           }
@@ -410,8 +419,157 @@ export default function Home() {
         setIsLoading(false);
       }
     },
-    [selection, settings, requestDesignData, callAgentAPI]
+    [selection, settings, requestDesignData, callReviewAPI]
   );
+
+  // --- Chat mode: start chatting with an agent ---
+  const startChat = useCallback(
+    async (agentId: string) => {
+      if (!selection) return;
+      if (!settings.apiKey) {
+        setShowSettings(true);
+        return;
+      }
+
+      const customAgents = toCustomAgents(settings.customAgents);
+      const agent = getAgent(agentId, customAgents);
+      if (!agent) return;
+
+      setIsLoading(true);
+      try {
+        // Capture design data once for the conversation
+        const designData = await requestDesignData('Starting chat session');
+        chatDesignData.current = designData;
+        chatHistory.current = [];
+        setActiveAgent(agent);
+
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: createMessageId(),
+            role: 'assistant',
+            content: `Hey! I'm ${agent.name} — ${agent.subtitle.toLowerCase()}. What would you like to discuss about this design?`,
+            timestamp: Date.now(),
+            agentId: agent.id,
+            agentName: agent.name,
+            agentEmoji: agent.emoji,
+          },
+        ]);
+      } catch (err: any) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: createMessageId(),
+            role: 'assistant',
+            content: `Error starting chat: ${err?.message || 'Something went wrong.'}`,
+            timestamp: Date.now(),
+          },
+        ]);
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [selection, settings, requestDesignData]
+  );
+
+  // --- Chat mode: send a message ---
+  const sendChatMessage = useCallback(
+    async (prompt: string) => {
+      if (!activeAgent || !chatDesignData.current) return;
+
+      setIsLoading(true);
+
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: createMessageId(),
+          role: 'user',
+          content: prompt,
+          timestamp: Date.now(),
+        },
+      ]);
+
+      try {
+        const { items: reviewItems, text } = await callReviewAPI(
+          chatDesignData.current,
+          prompt,
+          activeAgent.builtIn ? activeAgent.id : undefined,
+          !activeAgent.builtIn ? activeAgent.systemPrompt : undefined,
+          chatHistory.current.length > 0 ? chatHistory.current : undefined,
+          true
+        );
+
+        // Update conversation history
+        chatHistory.current.push({ role: 'user', content: prompt });
+
+        const responseContent = text
+          || (reviewItems.length > 0
+            ? `Found ${reviewItems.length} item${reviewItems.length !== 1 ? 's' : ''} to review.`
+            : 'No issues found — the design looks good!');
+
+        chatHistory.current.push({ role: 'assistant', content: responseContent });
+
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: createMessageId(),
+            role: 'assistant',
+            content: responseContent,
+            reviewItems: reviewItems.length > 0 ? reviewItems : undefined,
+            timestamp: Date.now(),
+            agentId: activeAgent.id,
+            agentName: activeAgent.name,
+            agentEmoji: activeAgent.emoji,
+          },
+        ]);
+
+        if (reviewItems.length > 0) {
+          sendToPlugin({
+            type: 'WRITE_ANNOTATIONS',
+            payload: { reviewItems },
+          });
+        }
+      } catch (err: any) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: createMessageId(),
+            role: 'assistant',
+            content: `Error: ${err?.message || 'Something went wrong.'}`,
+            timestamp: Date.now(),
+            agentId: activeAgent.id,
+            agentName: activeAgent.name,
+            agentEmoji: activeAgent.emoji,
+          },
+        ]);
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [activeAgent, callReviewAPI]
+  );
+
+  // --- End chat mode ---
+  const endChat = useCallback(() => {
+    const agent = activeAgent;
+    setActiveAgent(null);
+    chatDesignData.current = null;
+    chatHistory.current = [];
+    if (agent) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: createMessageId(),
+          role: 'assistant',
+          content: `Chat with ${agent.name} ended.`,
+          timestamp: Date.now(),
+          agentId: agent.id,
+          agentName: agent.name,
+          agentEmoji: agent.emoji,
+        },
+      ]);
+    }
+  }, [activeAgent]);
 
   // --- Handlers ---
   const handleQuickPrompt = useCallback(
@@ -430,8 +588,12 @@ export default function Home() {
     const prompt = inputValue.trim();
     if (!prompt || isLoading) return;
     setInputValue('');
-    // Free-text goes to Oscar (general visual) by default
-    runReview(prompt, 'oscar');
+
+    if (activeAgent) {
+      sendChatMessage(prompt);
+    } else {
+      runReview(prompt, 'oscar');
+    }
   };
 
   const handleSettingsChange = (newSettings: Settings) => {
@@ -477,13 +639,31 @@ export default function Home() {
         onFocusNode={handleFocusNode}
       />
 
-      {/* Quick prompts */}
+      {/* Quick prompts / Chat mode indicator */}
       <div className="shrink-0">
-        <QuickPrompts
-          onSelect={handleQuickPrompt}
-          disabled={isLoading || !selection}
-          customAgents={settings.customAgents}
-        />
+        {activeAgent ? (
+          <div className="px-3 py-2 border-b border-figma-border flex items-center justify-between">
+            <span className="text-12 text-figma-text">
+              {activeAgent.emoji} Chatting with <span className="font-semibold">{activeAgent.name}</span>
+              <span className="text-figma-text-tertiary ml-1">— {activeAgent.subtitle}</span>
+            </span>
+            <button
+              onClick={endChat}
+              className="text-11 px-2 py-0.5 rounded border border-figma-border
+                         text-figma-text-secondary hover:text-figma-text hover:border-figma-text-secondary
+                         transition-colors"
+            >
+              End
+            </button>
+          </div>
+        ) : (
+          <QuickPrompts
+            onSelect={handleQuickPrompt}
+            onStartChat={startChat}
+            disabled={isLoading || !selection}
+            customAgents={settings.customAgents}
+          />
+        )}
       </div>
 
       {/* Input area */}
@@ -496,7 +676,11 @@ export default function Home() {
             type="text"
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
-            placeholder="Ask about this frame..."
+            placeholder={
+              activeAgent
+                ? `Ask ${activeAgent.name}...`
+                : 'Ask about this frame...'
+            }
             disabled={isLoading || !selection}
             className="flex-1 bg-figma-surface border border-figma-border rounded px-2 py-1.5
                        text-12 text-figma-text placeholder:text-figma-text-tertiary
@@ -520,22 +704,24 @@ export default function Home() {
             )}
           </button>
         </div>
-        <label className="flex items-center gap-1.5 mt-1.5 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={settings.includeScreenshot}
-            onChange={(e) =>
-              handleSettingsChange({
-                ...settings,
-                includeScreenshot: e.target.checked,
-              })
-            }
-            className="rounded border-figma-border"
-          />
-          <span className="text-11 text-figma-text-secondary">
-            Include screenshot
-          </span>
-        </label>
+        {!activeAgent && (
+          <label className="flex items-center gap-1.5 mt-1.5 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={settings.includeScreenshot}
+              onChange={(e) =>
+                handleSettingsChange({
+                  ...settings,
+                  includeScreenshot: e.target.checked,
+                })
+              }
+              className="rounded border-figma-border"
+            />
+            <span className="text-11 text-figma-text-secondary">
+              Include screenshot
+            </span>
+          </label>
+        )}
       </form>
 
       {/* Settings overlay */}
