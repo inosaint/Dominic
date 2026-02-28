@@ -100,6 +100,8 @@ export async function writeStickyNotes(
 
   const fallback = getAbsoluteXY(anchorNode);
 
+  const markers: FrameNode[] = [];
+
   for (let i = 0; i < sorted.length; i++) {
     const item = sorted[i];
     const marker = createMarker(item, i);
@@ -117,7 +119,16 @@ export async function writeStickyNotes(
     // Place at top-right corner of the target node, stacking horizontally if multiple
     marker.x = anchor.x + anchor.width - MARKER_SIZE / 2 + stackIndex * (MARKER_SIZE + 4);
     marker.y = anchor.y - MARKER_SIZE / 2;
+    markers.push(marker);
     created++;
+  }
+
+  // Group all markers into a single layer so they don't clutter the layers panel
+  if (markers.length > 0) {
+    const group = figma.group(markers, figma.currentPage);
+    group.name = 'AI Review Notes';
+    group.locked = true;
+    group.setPluginData('ai-review-note', '1');
   }
 
   return { created };
