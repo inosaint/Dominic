@@ -144,7 +144,7 @@ export default function ChatWindow({
 
       {/* Clear all notes button */}
       {hasReviewItems && onClearAll && (
-        <div className="flex justify-center pt-1 pb-2">
+        <div className="flex justify-start pt-1 pb-2 pl-7">
           <button
             onClick={onClearAll}
             className="text-11 px-3 py-1 rounded border border-figma-border

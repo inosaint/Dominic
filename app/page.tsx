@@ -655,12 +655,6 @@ export default function Home() {
 
   const handleClearAllNotes = useCallback(() => {
     sendToPlugin({ type: 'CLEAR_ANNOTATIONS' });
-    setMessages((prev) =>
-      prev.map((m) => {
-        if (!m.reviewItems) return m;
-        return { ...m, reviewItems: undefined, content: 'All items cleared.' };
-      })
-    );
   }, []);
 
   const handleClearAnnotations = () => {

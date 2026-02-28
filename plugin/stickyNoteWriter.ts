@@ -145,8 +145,8 @@ function createNoteCard(item: ReviewItem, index: number): FrameNode {
   header.characters = `${emoji} ${catLabel}`;
   header.fontSize = 11;
   header.fills = [{ type: 'SOLID', color: colors.bg }];
-  header.layoutSizingHorizontal = 'FILL';
   card.appendChild(header);
+  header.layoutSizingHorizontal = 'FILL';
 
   // Feedback body (truncated for canvas readability)
   const feedbackText = item.feedback.length > 120
@@ -158,8 +158,8 @@ function createNoteCard(item: ReviewItem, index: number): FrameNode {
   body.fontSize = 11;
   body.lineHeight = { value: 16, unit: 'PIXELS' };
   body.fills = [{ type: 'SOLID', color: { r: 0.88, g: 0.88, b: 0.9 } }];
-  body.layoutSizingHorizontal = 'FILL';
   card.appendChild(body);
+  body.layoutSizingHorizontal = 'FILL';
 
   card.setPluginData('ai-review-note', '1');
   card.setPluginData('ai-review-index', String(index));
