@@ -41,9 +41,11 @@ const CATEGORY_LABELS: Record<string, string> = {
   general: 'General',
 };
 
-const MARKER_SIZE = 24;
-const NOTE_WIDTH = 220;
-const NOTE_GAP = 6;
+const MARKER_SIZE = 32;
+const NOTE_WIDTH = 240;
+const NOTE_GAP = 10;
+const NOTES_OFFSET_X = 60;
+const CONNECTOR_STROKE = 1.5;
 
 async function loadFonts() {
   await Promise.all([
@@ -67,8 +69,8 @@ function createMarker(item: ReviewItem, index: number): FrameNode {
       type: 'DROP_SHADOW',
       color: colors.glow,
       offset: { x: 0, y: 0 },
-      radius: 10,
-      spread: 2,
+      radius: 12,
+      spread: 3,
       visible: true,
       blendMode: 'NORMAL',
     },
@@ -89,7 +91,7 @@ function createMarker(item: ReviewItem, index: number): FrameNode {
   const label = figma.createText();
   label.fontName = { family: 'Inter', style: 'Bold' };
   label.characters = String(index + 1);
-  label.fontSize = index < 9 ? 12 : 10;
+  label.fontSize = index < 9 ? 14 : 11;
   label.fills = [{ type: 'SOLID', color: colors.text }];
   label.textAlignHorizontal = 'CENTER';
   label.textAlignVertical = 'CENTER';
@@ -168,6 +170,30 @@ function createNoteCard(item: ReviewItem, index: number): FrameNode {
   return card;
 }
 
+function createConnectorLine(
+  x1: number, y1: number,
+  x2: number, y2: number,
+  color: RGB
+): VectorNode {
+  const minX = Math.min(x1, x2);
+  const minY = Math.min(y1, y2);
+
+  const line = figma.createVector();
+  line.name = 'Connector';
+  line.vectorPaths = [{
+    windingRule: 'NONE',
+    data: `M ${x1 - minX} ${y1 - minY} L ${x2 - minX} ${y2 - minY}`,
+  }];
+  line.x = minX;
+  line.y = minY;
+  line.strokes = [{ type: 'SOLID', color, opacity: 0.5 }];
+  line.strokeWeight = CONNECTOR_STROKE;
+  line.dashPattern = [4, 3];
+  line.fills = [];
+  line.setPluginData('ai-review-note', '1');
+  return line;
+}
+
 export async function writeStickyNotes(
   reviewItems: ReviewItem[],
   anchorNode: SceneNode
@@ -179,23 +205,30 @@ export async function writeStickyNotes(
     return (order[a.severity] ?? 3) - (order[b.severity] ?? 3);
   });
 
-  const cardsPerNode = new Map<string, number>();
-  let created = 0;
-
-  function getAbsoluteXY(node: SceneNode): { x: number; y: number; width: number; height: number } {
+  function getAbsoluteXY(node: SceneNode) {
     const transform = node.absoluteTransform;
-    const x = transform[0][2];
-    const y = transform[1][2];
-    const width = 'width' in node ? node.width : 0;
-    const height = 'height' in node ? node.height : 0;
-    return { x, y, width, height };
+    return {
+      x: transform[0][2],
+      y: transform[1][2],
+      width: 'width' in node ? node.width : 0,
+      height: 'height' in node ? node.height : 0,
+    };
   }
 
-  const fallback = getAbsoluteXY(anchorNode);
+  const anchorBounds = getAbsoluteXY(anchorNode);
   const allNodes: SceneNode[] = [];
+  const cardsPerNode = new Map<string, number>();
+
+  // Phase 1: create markers + notes, position markers on targets
+  const entries: Array<{
+    marker: FrameNode;
+    note: FrameNode;
+    color: RGB;
+  }> = [];
 
   for (let i = 0; i < sorted.length; i++) {
     const item = sorted[i];
+    const colors = SEVERITY_COLORS[item.severity] || SEVERITY_COLORS.suggestion;
 
     const marker = createMarker(item, i);
     figma.currentPage.appendChild(marker);
@@ -208,7 +241,7 @@ export async function writeStickyNotes(
       ? (target as SceneNode)
       : null;
 
-    const anchor = targetNode ? getAbsoluteXY(targetNode) : fallback;
+    const anchor = targetNode ? getAbsoluteXY(targetNode) : anchorBounds;
     const stackIndex = cardsPerNode.get(item.nodeId) ?? 0;
     cardsPerNode.set(item.nodeId, stackIndex + 1);
 
@@ -216,12 +249,32 @@ export async function writeStickyNotes(
     marker.x = anchor.x + anchor.width - MARKER_SIZE / 2 + stackIndex * (MARKER_SIZE + 4);
     marker.y = anchor.y - MARKER_SIZE / 2;
 
-    // Note card below marker, centered on it
-    note.x = marker.x - NOTE_WIDTH / 2 + MARKER_SIZE / 2;
-    note.y = marker.y + MARKER_SIZE + NOTE_GAP;
+    entries.push({ marker, note, color: colors.bg });
+    allNodes.push(marker);
+  }
 
-    allNodes.push(marker, note);
-    created++;
+  // Phase 2: stack notes in a vertical column to the right, draw connector lines
+  const noteColumnX = anchorBounds.x + anchorBounds.width + NOTES_OFFSET_X;
+  let noteY = anchorBounds.y;
+
+  for (const { marker, note, color } of entries) {
+    note.x = noteColumnX;
+    note.y = noteY;
+
+    const noteHeight = Math.max(note.height, 50);
+
+    // Dashed connector from marker center to note left-center
+    const connector = createConnectorLine(
+      marker.x + MARKER_SIZE / 2,
+      marker.y + MARKER_SIZE / 2,
+      noteColumnX,
+      noteY + noteHeight / 2,
+      color
+    );
+    figma.currentPage.appendChild(connector);
+
+    allNodes.push(note, connector);
+    noteY += noteHeight + NOTE_GAP;
   }
 
   // Group all into one layers entry (unlocked so markers are selectable)
@@ -232,7 +285,7 @@ export async function writeStickyNotes(
     group.setPluginData('ai-review-note', '1');
   }
 
-  return { created };
+  return { created: entries.length };
 }
 
 /** Remove a single review item (marker + note) by its index */
@@ -273,6 +326,7 @@ export async function clearStickyNotes(parent: BaseNode): Promise<number> {
         child.name.startsWith('AI Review Note:') ||
         child.name.startsWith('AI Note #') ||
         child.name === 'AI Review Notes' ||
+        child.name === 'Connector' ||
         child.getPluginData('ai-review-note') === '1';
 
       if (isReviewNote) {
