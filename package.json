@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "concurrently \"next dev\" \"npm run build:plugin -- --watch\"",
     "build": "next build && npm run build:plugin",
-    "build:plugin": "esbuild plugin/code.ts --bundle --outfile=plugin/code.js --target=es2020 --format=iife",
+    "build:plugin": "esbuild plugin/code.ts --bundle --outfile=plugin/code.js --target=es2017 --format=iife",
     "start": "next start",
     "lint": "next lint"
   },
