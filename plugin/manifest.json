@@ -9,7 +9,7 @@
     "allowedDomains": [
       "https://api.anthropic.com",
       "https://api.openai.com",
-      "https://localhost:3000"
+      "http://localhost:3000"
     ],
     "reasoning": "LLM API calls for design review"
   },
