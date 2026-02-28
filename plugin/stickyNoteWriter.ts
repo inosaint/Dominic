@@ -82,8 +82,10 @@ function createMarker(item: ReviewItem, index: number): FrameNode {
     },
   ];
 
-  // Center the number
+  // Center the number — keep both axes fixed at MARKER_SIZE
   marker.layoutMode = 'HORIZONTAL';
+  marker.primaryAxisSizingMode = 'FIXED';
+  marker.counterAxisSizingMode = 'FIXED';
   marker.primaryAxisAlignItems = 'CENTER';
   marker.counterAxisAlignItems = 'CENTER';
 
@@ -177,17 +179,18 @@ function createConnectorLine(
   const minX = Math.min(x1, x2);
   const minY = Math.min(y1, y2);
 
+  // L-shaped elbow: horizontal from marker to note column X, then vertical to note Y
   const line = figma.createVector();
   line.name = 'Connector';
   line.vectorPaths = [{
     windingRule: 'NONE',
-    data: `M ${x1 - minX} ${y1 - minY} L ${x2 - minX} ${y2 - minY}`,
+    data: `M ${x1 - minX} ${y1 - minY} L ${x2 - minX} ${y1 - minY} L ${x2 - minX} ${y2 - minY}`,
   }];
   line.x = minX;
   line.y = minY;
-  line.strokes = [{ type: 'SOLID', color, opacity: 0.5 }];
-  line.strokeWeight = CONNECTOR_STROKE;
-  line.dashPattern = [4, 3];
+  line.strokes = [{ type: 'SOLID', color, opacity: 0.4 }];
+  line.strokeWeight = 1;
+  line.dashPattern = [3, 2];
   line.fills = [];
   line.setPluginData('ai-review-note', '1');
   return line;
@@ -262,9 +265,9 @@ export async function writeStickyNotes(
 
     const noteHeight = Math.max(note.height, 50);
 
-    // Dashed connector from marker center to note left-center
+    // L-shaped connector from marker right edge to note left-center
     const connector = createConnectorLine(
-      marker.x + MARKER_SIZE / 2,
+      marker.x + MARKER_SIZE,
       marker.y + MARKER_SIZE / 2,
       noteColumnX,
       noteY + noteHeight / 2,

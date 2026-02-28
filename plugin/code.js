@@ -398,7 +398,6 @@ ${item.feedback}`;
   var NOTE_WIDTH = 240;
   var NOTE_GAP = 10;
   var NOTES_OFFSET_X = 60;
-  var CONNECTOR_STROKE = 1.5;
   async function loadFonts() {
     await Promise.all([
       figma.loadFontAsync({ family: "Inter", style: "Regular" }),
@@ -432,6 +431,8 @@ ${item.feedback}`;
       }
     ];
     marker.layoutMode = "HORIZONTAL";
+    marker.primaryAxisSizingMode = "FIXED";
+    marker.counterAxisSizingMode = "FIXED";
     marker.primaryAxisAlignItems = "CENTER";
     marker.counterAxisAlignItems = "CENTER";
     const label = figma.createText();
@@ -509,13 +510,13 @@ ${item.feedback}`;
     line.name = "Connector";
     line.vectorPaths = [{
       windingRule: "NONE",
-      data: `M ${x1 - minX} ${y1 - minY} L ${x2 - minX} ${y2 - minY}`
+      data: `M ${x1 - minX} ${y1 - minY} L ${x2 - minX} ${y1 - minY} L ${x2 - minX} ${y2 - minY}`
     }];
     line.x = minX;
     line.y = minY;
-    line.strokes = [{ type: "SOLID", color, opacity: 0.5 }];
-    line.strokeWeight = CONNECTOR_STROKE;
-    line.dashPattern = [4, 3];
+    line.strokes = [{ type: "SOLID", color, opacity: 0.4 }];
+    line.strokeWeight = 1;
+    line.dashPattern = [3, 2];
     line.fills = [];
     line.setPluginData("ai-review-note", "1");
     return line;
@@ -565,7 +566,7 @@ ${item.feedback}`;
       note.y = noteY;
       const noteHeight = Math.max(note.height, 50);
       const connector = createConnectorLine(
-        marker.x + MARKER_SIZE / 2,
+        marker.x + MARKER_SIZE,
         marker.y + MARKER_SIZE / 2,
         noteColumnX,
         noteY + noteHeight / 2,
