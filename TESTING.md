@@ -1,23 +1,75 @@
-# Testing Guide — Sticky Notes Feature
+# Testing Guide — Pair Designer Plugin
 
 ## Prerequisites
 
-1. Figma Desktop app installed
-2. Node.js and npm available
-3. An Anthropic or OpenAI API key
+1. **Figma Desktop** app installed (not the browser version — plugins loaded from local manifest require the desktop app)
+2. **Node.js** (v18+) and **npm** installed
+3. An **Anthropic** or **OpenAI** API key
 
-## Setup
+## Manual Setup (Step by Step)
+
+### 1. Install dependencies
 
 ```bash
+cd /path/to/Dominic
 npm install
+```
+
+### 2. Build the plugin sandbox code
+
+The plugin sandbox (`plugin/code.ts`) must be bundled to plain JS before Figma can load it:
+
+```bash
+npm run build:plugin
+```
+
+This runs esbuild and produces `plugin/code.js`.
+
+### 3. Start the dev server
+
+The plugin UI is a Next.js app served at `http://localhost:3000`. The plugin iframe loads this URL.
+
+```bash
 npm run dev
 ```
 
-Load the plugin in Figma:
-1. Right-click on the canvas
-2. **Plugins > Development > Import plugin from manifest**
-3. Select `plugin/manifest.json`
-4. The plugin UI loads from `localhost:3000`
+This starts both the Next.js dev server and the esbuild watcher in parallel (via `concurrently`). If you prefer to run them separately:
+
+```bash
+# Terminal 1 — Next.js UI
+npx next dev
+
+# Terminal 2 — Plugin code watcher
+npx esbuild plugin/code.ts --bundle --outfile=plugin/code.js --target=es2020 --format=iife --watch
+```
+
+### 4. Load the plugin in Figma
+
+1. Open **Figma Desktop**
+2. Open any design file (or create a new one)
+3. Right-click on the canvas
+4. Go to **Plugins > Development > Import plugin from manifest...**
+5. Navigate to the project folder and select **`plugin/manifest.json`**
+   - The manifest is at `<project-root>/plugin/manifest.json`
+   - `main` points to `code.js` (same directory)
+   - `ui` points to `ui.html` (same directory, which loads `http://localhost:3000` in an iframe)
+6. The plugin should now appear under **Plugins > Development > Pair Designer**
+
+### 5. Run the plugin
+
+1. Right-click canvas > **Plugins > Development > Pair Designer**
+2. The plugin panel opens — you should see the chat UI
+3. Click the gear icon and enter your API key
+
+### Troubleshooting
+
+| Problem | Cause | Fix |
+|---------|-------|-----|
+| `ENOENT: plugin/plugin/code.js` | Old manifest had doubled paths | Fixed — `manifest.json` now uses `"main": "code.js"` (relative to itself). Re-import the manifest in Figma. |
+| Plugin UI is blank / white | Next.js dev server not running | Run `npm run dev` and make sure `http://localhost:3000` loads in your browser |
+| "Cannot find module" errors in console | Dependencies not installed | Run `npm install` |
+| Plugin not in menu after import | Figma cached old manifest | Go to **Plugins > Development > Manage plugins in development**, remove the old entry, and re-import |
+| `code.js` not found | Plugin code not built | Run `npm run build:plugin` |
 
 ---
 

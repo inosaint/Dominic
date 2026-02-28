@@ -2,8 +2,8 @@
   "name": "Pair Designer",
   "id": "pair-designer-ai-review",
   "api": "1.0.0",
-  "main": "plugin/code.js",
-  "ui": "plugin/ui.html",
+  "main": "code.js",
+  "ui": "ui.html",
   "editorType": ["figma"],
   "networkAccess": {
     "allowedDomains": [
