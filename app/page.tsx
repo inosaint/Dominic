@@ -258,8 +258,8 @@ export default function Home() {
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-figma-border shrink-0">
         <div className="flex items-center gap-2">
-          <img src="/icon.svg" alt="Pair Designer" className="w-5 h-5 rounded" />
-          <h1 className="text-13 font-semibold text-figma-text">Pair Designer</h1>
+          <img src="/icon.svg" alt="Dominic" className="w-5 h-5 rounded" />
+          <h1 className="text-13 font-semibold text-figma-text">Dominic <span className="text-figma-text-secondary font-normal">— Your pair designer</span></h1>
         </div>
         <button
           onClick={() => setShowSettings(!showSettings)}

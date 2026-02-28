@@ -2,8 +2,8 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Pair Designer',
-  description: 'AI pair designer for Figma',
+  title: 'Dominic',
+  description: 'Dominic - Your AI pair designer for Figma',
 };
 
 export default function RootLayout({
