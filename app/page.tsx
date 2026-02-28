@@ -41,6 +41,25 @@ function toCustomAgents(configs: CustomAgentConfig[] = []): CustomAgent[] {
   return configs.map((c) => ({ ...c, builtIn: false as const }));
 }
 
+/** Flatten a design data tree into a map of node name → node id */
+function buildNodeMap(data: any): Map<string, string> {
+  const map = new Map<string, string>();
+  function walk(node: any) {
+    if (!node || typeof node !== 'object') return;
+    if (node.id && node.name && typeof node.name === 'string' && node.name.length > 2) {
+      // Prefer the first occurrence (higher in the tree)
+      if (!map.has(node.name)) {
+        map.set(node.name, node.id);
+      }
+    }
+    if (Array.isArray(node.children)) {
+      for (const child of node.children) walk(child);
+    }
+  }
+  walk(data);
+  return map;
+}
+
 export default function Home() {
   const [selection, setSelection] = useState<SelectionInfoType | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -52,6 +71,7 @@ export default function Home() {
 
   // Chat mode state
   const [activeAgent, setActiveAgent] = useState<ReviewAgent | null>(null);
+  const [nodeMap, setNodeMap] = useState<Map<string, string>>(new Map());
   const chatDesignData = useRef<{ json: object; screenshot?: string } | null>(null);
   const chatHistory = useRef<ConversationTurn[]>([]);
 
@@ -169,7 +189,15 @@ export default function Home() {
   const requestDesignData = useCallback(
     (prompt: string): Promise<{ json: object; screenshot?: string }> => {
       return new Promise((resolve, reject) => {
-        pendingReview.current = { prompt, resolve, reject };
+        pendingReview.current = {
+          prompt,
+          resolve: (data) => {
+            // Build node map from the design data for clickable layer refs
+            setNodeMap(buildNodeMap(data.json));
+            resolve(data);
+          },
+          reject,
+        };
         sendToPlugin({
           type: 'RUN_REVIEW',
           payload: {
@@ -637,6 +665,7 @@ export default function Home() {
         messages={messages}
         highlightedMarker={highlightedMarker}
         onFocusNode={handleFocusNode}
+        nodeMap={nodeMap}
       />
 
       {/* Quick prompts / Chat mode indicator */}
