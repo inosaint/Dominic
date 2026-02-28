@@ -21,11 +21,21 @@ export interface ReviewItem {
     | 'layout'
     | 'consistency'
     | 'interaction'
+    | 'i18n'
+    | 'tokens'
     | 'general';
   severity: 'suggestion' | 'warning' | 'issue';
 }
 
 export type OutputMode = 'annotations' | 'sticky-notes' | 'both';
+
+export interface CustomAgentConfig {
+  id: string;
+  name: string;
+  emoji: string;
+  subtitle: string;
+  systemPrompt: string;
+}
 
 export interface Settings {
   provider: 'anthropic' | 'openai';
@@ -34,6 +44,7 @@ export interface Settings {
   includeScreenshot: boolean;
   autoClearPrevious: boolean;
   outputMode: OutputMode;
+  customAgents?: CustomAgentConfig[];
 }
 
 export interface ChatMessage {
@@ -43,6 +54,9 @@ export interface ChatMessage {
   reviewItems?: ReviewItem[];
   annotationResult?: { written: number; skipped: number; annotationsSupported: boolean };
   timestamp: number;
+  agentId?: string;
+  agentName?: string;
+  agentEmoji?: string;
 }
 
 export interface ReviewRequest {
@@ -52,6 +66,8 @@ export interface ReviewRequest {
   provider: 'anthropic' | 'openai';
   apiKey: string;
   model: string;
+  agentId?: string;
+  agentSystemPrompt?: string;
 }
 
 export interface ReviewResponse {

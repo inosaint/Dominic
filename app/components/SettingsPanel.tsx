@@ -1,6 +1,7 @@
 'use client';
 
-import { Settings, OutputMode } from '../lib/types';
+import { useState } from 'react';
+import { Settings, OutputMode, CustomAgentConfig } from '../lib/types';
 
 interface Props {
   settings: Settings;
@@ -15,8 +16,38 @@ export default function SettingsPanel({
   onClearAnnotations,
   onClose,
 }: Props) {
+  const [showAgentForm, setShowAgentForm] = useState(false);
+  const [newAgentName, setNewAgentName] = useState('');
+  const [newAgentEmoji, setNewAgentEmoji] = useState('');
+  const [newAgentSubtitle, setNewAgentSubtitle] = useState('');
+  const [newAgentPrompt, setNewAgentPrompt] = useState('');
+
   const update = (partial: Partial<Settings>) => {
     onChange({ ...settings, ...partial });
+  };
+
+  const addCustomAgent = () => {
+    if (!newAgentName.trim() || !newAgentPrompt.trim()) return;
+    const id = newAgentName.toLowerCase().replace(/[^a-z0-9]/g, '-') + '-' + Date.now();
+    const agent: CustomAgentConfig = {
+      id,
+      name: newAgentName.trim(),
+      emoji: newAgentEmoji.trim() || '',
+      subtitle: newAgentSubtitle.trim() || 'Custom agent',
+      systemPrompt: newAgentPrompt.trim(),
+    };
+    update({ customAgents: [...(settings.customAgents || []), agent] });
+    setNewAgentName('');
+    setNewAgentEmoji('');
+    setNewAgentSubtitle('');
+    setNewAgentPrompt('');
+    setShowAgentForm(false);
+  };
+
+  const removeCustomAgent = (id: string) => {
+    update({
+      customAgents: (settings.customAgents || []).filter((a) => a.id !== id),
+    });
   };
 
   return (
@@ -137,6 +168,100 @@ export default function SettingsPanel({
               Auto-clear previous review output
             </span>
           </label>
+        </div>
+
+        {/* Custom Agents */}
+        <div className="pt-2 border-t border-figma-border">
+          <label className="block text-11 text-figma-text-secondary mb-2">
+            Custom Review Agents
+          </label>
+
+          {/* Existing custom agents */}
+          {(settings.customAgents || []).map((agent) => (
+            <div
+              key={agent.id}
+              className="flex items-center justify-between bg-figma-surface rounded px-2 py-1.5 mb-1"
+            >
+              <span className="text-12 text-figma-text">
+                {agent.emoji} {agent.name}
+                <span className="text-figma-text-tertiary ml-1">{agent.subtitle}</span>
+              </span>
+              <button
+                onClick={() => removeCustomAgent(agent.id)}
+                className="text-figma-text-tertiary hover:text-figma-error text-11 px-1"
+              >
+                &times;
+              </button>
+            </div>
+          ))}
+
+          {/* Add agent form */}
+          {showAgentForm ? (
+            <div className="space-y-2 mt-2">
+              <div className="flex gap-1">
+                <input
+                  type="text"
+                  value={newAgentEmoji}
+                  onChange={(e) => setNewAgentEmoji(e.target.value)}
+                  placeholder="Emoji"
+                  maxLength={4}
+                  className="w-12 bg-figma-surface border border-figma-border rounded px-2 py-1
+                             text-12 text-figma-text text-center focus:outline-none focus:border-figma-accent"
+                />
+                <input
+                  type="text"
+                  value={newAgentName}
+                  onChange={(e) => setNewAgentName(e.target.value)}
+                  placeholder="Name"
+                  className="flex-1 bg-figma-surface border border-figma-border rounded px-2 py-1
+                             text-12 text-figma-text focus:outline-none focus:border-figma-accent"
+                />
+              </div>
+              <input
+                type="text"
+                value={newAgentSubtitle}
+                onChange={(e) => setNewAgentSubtitle(e.target.value)}
+                placeholder="Short description (e.g. Brand guidelines)"
+                className="w-full bg-figma-surface border border-figma-border rounded px-2 py-1
+                           text-12 text-figma-text focus:outline-none focus:border-figma-accent"
+              />
+              <textarea
+                value={newAgentPrompt}
+                onChange={(e) => setNewAgentPrompt(e.target.value)}
+                placeholder="Paste the agent's system prompt here. Describe their expertise, personality, and what rules they should check..."
+                rows={6}
+                className="w-full bg-figma-surface border border-figma-border rounded px-2 py-1.5
+                           text-12 text-figma-text placeholder:text-figma-text-tertiary
+                           focus:outline-none focus:border-figma-accent resize-y"
+              />
+              <div className="flex gap-1">
+                <button
+                  onClick={addCustomAgent}
+                  disabled={!newAgentName.trim() || !newAgentPrompt.trim()}
+                  className="flex-1 py-1 text-11 rounded bg-figma-accent text-white
+                             hover:bg-figma-accent-hover disabled:opacity-40 transition-colors"
+                >
+                  Add agent
+                </button>
+                <button
+                  onClick={() => setShowAgentForm(false)}
+                  className="px-3 py-1 text-11 rounded border border-figma-border text-figma-text-secondary
+                             hover:bg-figma-surface transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              onClick={() => setShowAgentForm(true)}
+              className="w-full py-1.5 text-11 rounded border border-dashed border-figma-border
+                         text-figma-text-secondary hover:border-figma-accent hover:text-figma-accent
+                         transition-colors mt-1"
+            >
+              + Add custom agent
+            </button>
+          )}
         </div>
 
         {/* Clear all review output */}

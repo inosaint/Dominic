@@ -24,6 +24,8 @@ const CATEGORY_LABELS: Record<string, string> = {
   layout: 'Layout',
   consistency: 'Consistency',
   interaction: 'Interaction',
+  i18n: 'Localization',
+  tokens: 'Tokens',
   general: 'General',
 };
 

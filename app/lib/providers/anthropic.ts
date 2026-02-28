@@ -1,17 +1,16 @@
 // Anthropic API provider
 
-import { SYSTEM_PROMPT } from '../prompts';
-
 export async function callAnthropic(params: {
   apiKey: string;
   model: string;
   designData: object;
   screenshot?: string;
   userPrompt: string;
+  systemPrompt: string;
 }): Promise<string> {
-  const { apiKey, model, designData, screenshot, userPrompt } = params;
+  const { apiKey, model, designData, screenshot, userPrompt, systemPrompt } = params;
 
-  const userMessage = `DESIGN DATA:\n${JSON.stringify(designData, null, 2)}\n\nUSER QUESTION:\n${userPrompt}`;
+  const userMessage = `DESIGN DATA:\n${JSON.stringify(designData)}\n\nUSER QUESTION:\n${userPrompt}`;
 
   const content: any[] = [];
 
@@ -41,7 +40,7 @@ export async function callAnthropic(params: {
     body: JSON.stringify({
       model,
       max_tokens: 4096,
-      system: SYSTEM_PROMPT,
+      system: systemPrompt,
       messages: [
         {
           role: 'user',

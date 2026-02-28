@@ -33,7 +33,11 @@ export default function ChatWindow({ messages, highlightedMarker, onFocusNode }:
         <div key={msg.id}>
           <div className="flex items-start gap-2">
             <span className="text-11 text-figma-text-tertiary font-medium shrink-0 mt-0.5">
-              {msg.role === 'user' ? 'You' : 'AI'}:
+              {msg.role === 'user'
+                ? 'You'
+                : msg.agentName
+                  ? `${msg.agentEmoji || ''} ${msg.agentName}`
+                  : 'AI'}:
             </span>
             <div className="text-12 text-figma-text min-w-0">
               <p className="whitespace-pre-wrap break-words">{msg.content}</p>

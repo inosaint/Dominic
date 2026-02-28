@@ -6,8 +6,10 @@ import {
   ChatMessage,
   Settings,
   ReviewItem,
+  CustomAgentConfig,
 } from './lib/types';
 import { sendToPlugin, onPluginMessage } from './lib/figmaAPI';
+import { getAgent, getAllAgents, BUILT_IN_AGENTS, CustomAgent } from './lib/agents';
 import SelectionInfo from './components/SelectionInfo';
 import ChatWindow from './components/ChatWindow';
 import QuickPrompts from './components/QuickPrompts';
@@ -20,6 +22,7 @@ const DEFAULT_SETTINGS: Settings = {
   includeScreenshot: true,
   autoClearPrevious: true,
   outputMode: 'sticky-notes',
+  customAgents: [],
 };
 
 function createMessageId(): string {
@@ -31,6 +34,10 @@ function createMessageId(): string {
     return globalThis.crypto.randomUUID();
   }
   return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function toCustomAgents(configs: CustomAgentConfig[] = []): CustomAgent[] {
+  return configs.map((c) => ({ ...c, builtIn: false as const }));
 }
 
 export default function Home() {
@@ -67,7 +74,6 @@ export default function Home() {
         }
       }),
       onPluginMessage('ANNOTATIONS_WRITTEN', (msg) => {
-        // Update the last assistant message with annotation result
         setMessages((prev) => {
           const updated = [...prev];
           for (let i = updated.length - 1; i >= 0; i--) {
@@ -153,8 +159,149 @@ export default function Home() {
     };
   }, []);
 
-  // --- Run a review ---
+  // --- Request design data from plugin (shared step) ---
+  const requestDesignData = useCallback(
+    (prompt: string): Promise<{ json: object; screenshot?: string }> => {
+      return new Promise((resolve, reject) => {
+        pendingReview.current = { prompt, resolve, reject };
+        sendToPlugin({
+          type: 'RUN_REVIEW',
+          payload: {
+            prompt,
+            includeScreenshot: settings.includeScreenshot,
+          },
+        });
+
+        pendingReviewTimeout.current = setTimeout(() => {
+          if (pendingReview.current) {
+            pendingReview.current = null;
+            pendingReviewTimeout.current = null;
+            reject(new Error('Timed out waiting for design data from Figma.'));
+          }
+        }, 30000);
+      });
+    },
+    [settings.includeScreenshot]
+  );
+
+  // --- Call a single agent API ---
+  const callAgentAPI = useCallback(
+    async (
+      designData: { json: object; screenshot?: string },
+      prompt: string,
+      agentId?: string,
+      agentSystemPrompt?: string
+    ): Promise<ReviewItem[]> => {
+      const response = await fetch('/api/review', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          designData: designData.json,
+          screenshot: designData.screenshot,
+          userPrompt: prompt,
+          provider: settings.provider,
+          apiKey: settings.apiKey,
+          model: settings.model,
+          agentId,
+          agentSystemPrompt,
+        }),
+      });
+
+      const result = await response.json();
+      if (result.error) throw new Error(result.error);
+      return result.items || [];
+    },
+    [settings.provider, settings.apiKey, settings.model]
+  );
+
+  // --- Run a single-agent review ---
   const runReview = useCallback(
+    async (prompt: string, agentId?: string) => {
+      if (!selection) return;
+      if (!settings.apiKey) {
+        setShowSettings(true);
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: createMessageId(),
+            role: 'assistant',
+            content: 'Please set your API key in settings first.',
+            timestamp: Date.now(),
+          },
+        ]);
+        return;
+      }
+
+      setIsLoading(true);
+
+      const customAgents = toCustomAgents(settings.customAgents);
+      const agent = agentId ? getAgent(agentId, customAgents) : undefined;
+
+      // Add user message
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: createMessageId(),
+          role: 'user',
+          content: prompt,
+          timestamp: Date.now(),
+        },
+      ]);
+
+      try {
+        const designData = await requestDesignData(prompt);
+        const reviewItems = await callAgentAPI(
+          designData,
+          prompt,
+          agent?.builtIn ? agent.id : undefined,
+          agent && !agent.builtIn ? agent.systemPrompt : undefined
+        );
+
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: createMessageId(),
+            role: 'assistant',
+            content:
+              reviewItems.length > 0
+                ? `Found ${reviewItems.length} item${reviewItems.length !== 1 ? 's' : ''} to review.`
+                : 'No issues found — the design looks good!',
+            reviewItems,
+            timestamp: Date.now(),
+            agentId: agent?.id,
+            agentName: agent?.name,
+            agentEmoji: agent?.emoji,
+          },
+        ]);
+
+        if (reviewItems.length > 0) {
+          sendToPlugin({
+            type: 'WRITE_ANNOTATIONS',
+            payload: { reviewItems },
+          });
+        }
+      } catch (err: any) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: createMessageId(),
+            role: 'assistant',
+            content: `Error: ${err?.message || 'Something went wrong.'}`,
+            timestamp: Date.now(),
+            agentId: agent?.id,
+            agentName: agent?.name,
+            agentEmoji: agent?.emoji,
+          },
+        ]);
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [selection, settings, requestDesignData, callAgentAPI]
+  );
+
+  // --- Run all agents in parallel ---
+  const runAllAgents = useCallback(
     async (prompt: string) => {
       if (!selection) return;
       if (!settings.apiKey) {
@@ -173,7 +320,9 @@ export default function Home() {
 
       setIsLoading(true);
 
-      // Add user message
+      const customAgents = toCustomAgents(settings.customAgents);
+      const allAgents = getAllAgents(customAgents);
+
       setMessages((prev) => [
         ...prev,
         {
@@ -185,72 +334,66 @@ export default function Home() {
       ]);
 
       try {
-        // 1. Request design data from the plugin
-        const designData = await new Promise<{
-          json: object;
-          screenshot?: string;
-        }>((resolve, reject) => {
-          pendingReview.current = { prompt, resolve, reject };
-          sendToPlugin({
-            type: 'RUN_REVIEW',
-            payload: {
+        // Get design data once
+        const designData = await requestDesignData(prompt);
+
+        // Fire all agents in parallel
+        const results = await Promise.allSettled(
+          allAgents.map((agent) =>
+            callAgentAPI(
+              designData,
               prompt,
-              includeScreenshot: settings.includeScreenshot,
-            },
-          });
+              agent.builtIn ? agent.id : undefined,
+              !agent.builtIn ? agent.systemPrompt : undefined
+            ).then((items) => ({ agent, items }))
+          )
+        );
 
-          // Timeout after 30s
-          pendingReviewTimeout.current = setTimeout(() => {
-            if (pendingReview.current) {
-              pendingReview.current = null;
-              pendingReviewTimeout.current = null;
-              reject(new Error('Timed out waiting for design data from Figma.'));
-            }
-          }, 30000);
-        });
+        // Collect all review items for annotations
+        let allItems: ReviewItem[] = [];
 
-        // 2. Call the API route
-        const response = await fetch('/api/review', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            designData: designData.json,
-            screenshot: designData.screenshot,
-            userPrompt: prompt,
-            provider: settings.provider,
-            apiKey: settings.apiKey,
-            model: settings.model,
-          }),
-        });
-
-        const result = await response.json();
-
-        if (result.error) {
-          throw new Error(result.error);
+        for (const result of results) {
+          if (result.status === 'fulfilled') {
+            const { agent, items } = result.value;
+            allItems = allItems.concat(items);
+            setMessages((prev) => [
+              ...prev,
+              {
+                id: createMessageId(),
+                role: 'assistant',
+                content:
+                  items.length > 0
+                    ? `Found ${items.length} item${items.length !== 1 ? 's' : ''}.`
+                    : 'No issues found from my perspective.',
+                reviewItems: items,
+                timestamp: Date.now(),
+                agentId: agent.id,
+                agentName: agent.name,
+                agentEmoji: agent.emoji,
+              },
+            ]);
+          } else {
+            const agentIndex = results.indexOf(result);
+            const agent = allAgents[agentIndex];
+            setMessages((prev) => [
+              ...prev,
+              {
+                id: createMessageId(),
+                role: 'assistant',
+                content: `Error: ${result.reason?.message || 'Something went wrong.'}`,
+                timestamp: Date.now(),
+                agentId: agent?.id,
+                agentName: agent?.name,
+                agentEmoji: agent?.emoji,
+              },
+            ]);
+          }
         }
 
-        const reviewItems: ReviewItem[] = result.items || [];
-
-        // 3. Add assistant message with results
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: createMessageId(),
-            role: 'assistant',
-            content:
-              reviewItems.length > 0
-                ? `Found ${reviewItems.length} item${reviewItems.length !== 1 ? 's' : ''} to review.`
-                : 'No issues found — the design looks good!',
-            reviewItems,
-            timestamp: Date.now(),
-          },
-        ]);
-
-        // 4. Send review items to plugin to write annotations
-        if (reviewItems.length > 0) {
+        if (allItems.length > 0) {
           sendToPlugin({
             type: 'WRITE_ANNOTATIONS',
-            payload: { reviewItems },
+            payload: { reviewItems: allItems },
           });
         }
       } catch (err: any) {
@@ -267,16 +410,28 @@ export default function Home() {
         setIsLoading(false);
       }
     },
-    [selection, settings]
+    [selection, settings, requestDesignData, callAgentAPI]
   );
 
   // --- Handlers ---
+  const handleQuickPrompt = useCallback(
+    (prompt: string, agentId?: string, allAgents?: boolean) => {
+      if (allAgents) {
+        runAllAgents(prompt);
+      } else {
+        runReview(prompt, agentId);
+      }
+    },
+    [runReview, runAllAgents]
+  );
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const prompt = inputValue.trim();
     if (!prompt || isLoading) return;
     setInputValue('');
-    runReview(prompt);
+    // Free-text goes to Oscar (general visual) by default
+    runReview(prompt, 'oscar');
   };
 
   const handleSettingsChange = (newSettings: Settings) => {
@@ -325,8 +480,9 @@ export default function Home() {
       {/* Quick prompts */}
       <div className="shrink-0">
         <QuickPrompts
-          onSelect={runReview}
+          onSelect={handleQuickPrompt}
           disabled={isLoading || !selection}
+          customAgents={settings.customAgents}
         />
       </div>
 

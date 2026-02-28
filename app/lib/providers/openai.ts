@@ -1,17 +1,16 @@
 // OpenAI API provider
 
-import { SYSTEM_PROMPT } from '../prompts';
-
 export async function callOpenAI(params: {
   apiKey: string;
   model: string;
   designData: object;
   screenshot?: string;
   userPrompt: string;
+  systemPrompt: string;
 }): Promise<string> {
-  const { apiKey, model, designData, screenshot, userPrompt } = params;
+  const { apiKey, model, designData, screenshot, userPrompt, systemPrompt } = params;
 
-  const userMessage = `DESIGN DATA:\n${JSON.stringify(designData, null, 2)}\n\nUSER QUESTION:\n${userPrompt}`;
+  const userMessage = `DESIGN DATA:\n${JSON.stringify(designData)}\n\nUSER QUESTION:\n${userPrompt}`;
 
   const content: any[] = [];
 
@@ -38,7 +37,7 @@ export async function callOpenAI(params: {
       max_tokens: 4096,
       response_format: { type: 'json_object' },
       messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'system', content: systemPrompt },
         { role: 'user', content },
       ],
     }),

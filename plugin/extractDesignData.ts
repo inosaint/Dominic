@@ -22,6 +22,10 @@ export interface ExtractedNode {
   lineHeight?: LineHeightSummary | 'mixed';
   textAlignHorizontal?: string;
   textAlignVertical?: string;
+  textAutoResize?: string;
+  textTruncation?: string;
+  maxLines?: number;
+  charCount?: number;
   // Layout
   layoutMode?: 'HORIZONTAL' | 'VERTICAL' | 'NONE' | 'GRID';
   layoutSizingHorizontal?: 'FIXED' | 'HUG' | 'FILL';
@@ -33,6 +37,8 @@ export interface ExtractedNode {
   paddingLeft?: number;
   primaryAxisAlignItems?: string;
   counterAxisAlignItems?: string;
+  // Design tokens
+  boundVariables?: Record<string, string>;
   // Component info
   isComponent?: boolean;
   isInstance?: boolean;
@@ -185,6 +191,7 @@ export function extractNode(node: SceneNode, depth: number = 0, maxDepth: number
   if (node.type === 'TEXT') {
     const textNode = node as TextNode;
     extracted.characters = textNode.characters;
+    extracted.charCount = textNode.characters.length;
     extracted.fontSize =
       textNode.fontSize === figma.mixed ? 'mixed' : (textNode.fontSize as number);
     extracted.fontFamily =
@@ -207,6 +214,13 @@ export function extractNode(node: SceneNode, depth: number = 0, maxDepth: number
 
     extracted.textAlignHorizontal = textNode.textAlignHorizontal;
     extracted.textAlignVertical = textNode.textAlignVertical;
+    extracted.textAutoResize = textNode.textAutoResize;
+    if ('textTruncation' in textNode) {
+      extracted.textTruncation = (textNode as any).textTruncation;
+    }
+    if ('maxLines' in textNode && (textNode as any).maxLines != null) {
+      extracted.maxLines = (textNode as any).maxLines;
+    }
   }
 
   // Layout properties (auto layout)
@@ -223,6 +237,29 @@ export function extractNode(node: SceneNode, depth: number = 0, maxDepth: number
       extracted.paddingLeft = frame.paddingLeft;
       extracted.primaryAxisAlignItems = frame.primaryAxisAlignItems;
       extracted.counterAxisAlignItems = frame.counterAxisAlignItems;
+    }
+  }
+
+  // Design token bindings
+  if ('boundVariables' in node) {
+    const bv = (node as any).boundVariables;
+    if (bv && typeof bv === 'object') {
+      const bindings: Record<string, string> = {};
+      for (const [prop, binding] of Object.entries(bv)) {
+        if (binding && typeof binding === 'object' && 'id' in (binding as any)) {
+          try {
+            const variable = figma.variables.getVariableById((binding as any).id);
+            if (variable) {
+              bindings[prop] = variable.name;
+            }
+          } catch (_e) {
+            // Variable lookup failed — skip
+          }
+        }
+      }
+      if (Object.keys(bindings).length > 0) {
+        extracted.boundVariables = bindings;
+      }
     }
   }
 
