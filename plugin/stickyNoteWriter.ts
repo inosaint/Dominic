@@ -1,110 +1,74 @@
-// Creates sticky-note-like feedback cards on the canvas
-// Works on all Figma plans — no Dev Mode required
+// Creates small numbered marker pins on the canvas at flagged nodes
+// Detail is shown in the plugin UI panel — markers are just pointers
 
 import { ReviewItem } from './types';
 
-const SEVERITY_COLORS: Record<string, { bg: RGB; border: RGB; text: string }> = {
+const SEVERITY_COLORS: Record<string, { bg: RGB; text: RGB }> = {
   issue: {
-    bg: { r: 0.95, g: 0.91, b: 0.9 },
-    border: { r: 0.95, g: 0.28, b: 0.13 },
-    text: '#F24822',
+    bg: { r: 0.95, g: 0.28, b: 0.13 },   // #F24822
+    text: { r: 1, g: 1, b: 1 },
   },
   warning: {
-    bg: { r: 0.97, g: 0.94, b: 0.88 },
-    border: { r: 0.95, g: 0.6, b: 0.29 },
-    text: '#F2994A',
+    bg: { r: 0.95, g: 0.6, b: 0.07 },     // #F29912
+    text: { r: 1, g: 1, b: 1 },
   },
   suggestion: {
-    bg: { r: 0.91, g: 0.93, b: 0.97 },
-    border: { r: 0.48, g: 0.38, b: 1 },
-    text: '#7B61FF',
+    bg: { r: 0.48, g: 0.38, b: 1 },       // #7B61FF
+    text: { r: 1, g: 1, b: 1 },
   },
 };
 
-const CATEGORY_LABELS: Record<string, string> = {
-  spacing: 'Spacing',
-  typography: 'Typography',
-  color: 'Color',
-  hierarchy: 'Hierarchy',
-  accessibility: 'Accessibility',
-  layout: 'Layout',
-  consistency: 'Consistency',
-  interaction: 'Interaction',
-  general: 'General',
-};
+const MARKER_SIZE = 24;
 
 async function loadFonts() {
   await figma.loadFontAsync({ family: 'Inter', style: 'Bold' });
-  await figma.loadFontAsync({ family: 'Inter', style: 'Regular' });
 }
 
-function createStickyNote(item: ReviewItem): FrameNode {
+function createMarker(item: ReviewItem, index: number): FrameNode {
   const colors = SEVERITY_COLORS[item.severity] || SEVERITY_COLORS.suggestion;
 
-  const cardWidth = 300;
-  const contentWidth = 276; // card width minus horizontal padding
-
-  // Outer card
-  const card = figma.createFrame();
-  card.name = `AI Review Note: ${item.category} (${item.severity})`;
-  card.layoutMode = 'VERTICAL';
-  card.primaryAxisSizingMode = 'AUTO';
-  card.counterAxisSizingMode = 'FIXED';
-  card.resize(cardWidth, 1);
-  card.itemSpacing = 6;
-  card.paddingTop = 10;
-  card.paddingBottom = 10;
-  card.paddingLeft = 12;
-  card.paddingRight = 12;
-  card.fills = [{ type: 'SOLID', color: colors.bg }];
-  card.cornerRadius = 8;
-  card.strokes = [{ type: 'SOLID', color: colors.border }];
-  card.strokeWeight = 1;
-  card.effects = [
+  // Outer circle frame
+  const marker = figma.createFrame();
+  marker.name = `AI Review #${index + 1}: ${item.category} (${item.severity})`;
+  marker.resize(MARKER_SIZE, MARKER_SIZE);
+  marker.cornerRadius = MARKER_SIZE / 2; // perfect circle
+  marker.fills = [{ type: 'SOLID', color: colors.bg }];
+  marker.strokes = [{ type: 'SOLID', color: { r: 1, g: 1, b: 1 } }];
+  marker.strokeWeight = 2;
+  marker.strokeAlign = 'OUTSIDE';
+  marker.effects = [
     {
       type: 'DROP_SHADOW',
-      color: { r: 0, g: 0, b: 0, a: 0.1 },
-      offset: { x: 0, y: 2 },
-      radius: 8,
+      color: { r: 0, g: 0, b: 0, a: 0.25 },
+      offset: { x: 0, y: 1 },
+      radius: 4,
       spread: 0,
       visible: true,
       blendMode: 'NORMAL',
     },
   ];
-  card.setPluginData('ai-review-note', '1');
 
-  // Header row
-  const header = figma.createText();
-  header.name = 'header';
-  const severityLabel = item.severity === 'issue' ? 'Issue' : item.severity === 'warning' ? 'Warning' : 'Suggestion';
-  header.characters = `${severityLabel} \u00B7 ${CATEGORY_LABELS[item.category] || item.category}`;
-  header.fontName = { family: 'Inter', style: 'Bold' };
-  header.fontSize = 11;
-  header.fills = [{ type: 'SOLID', color: colors.border }];
-  card.appendChild(header);
+  // Center the number
+  marker.layoutMode = 'HORIZONTAL';
+  marker.primaryAxisAlignItems = 'CENTER';
+  marker.counterAxisAlignItems = 'CENTER';
 
-  // Feedback text
-  const feedback = figma.createText();
-  feedback.name = 'feedback';
-  feedback.characters = item.feedback;
-  feedback.fontName = { family: 'Inter', style: 'Regular' };
-  feedback.fontSize = 12;
-  feedback.lineHeight = { value: 18, unit: 'PIXELS' };
-  feedback.fills = [{ type: 'SOLID', color: { r: 0.15, g: 0.15, b: 0.15 } }];
-  feedback.textAutoResize = 'HEIGHT';
-  feedback.resize(contentWidth, 1);
-  card.appendChild(feedback);
+  // Number label
+  const label = figma.createText();
+  label.characters = String(index + 1);
+  label.fontName = { family: 'Inter', style: 'Bold' };
+  label.fontSize = index < 9 ? 12 : 10; // smaller font for 2-digit numbers
+  label.fills = [{ type: 'SOLID', color: colors.text }];
+  label.textAlignHorizontal = 'CENTER';
+  label.textAlignVertical = 'CENTER';
+  marker.appendChild(label);
 
-  // Node reference
-  const nodeRef = figma.createText();
-  nodeRef.name = 'node-ref';
-  nodeRef.characters = `Node: ${item.nodeId}`;
-  nodeRef.fontName = { family: 'Inter', style: 'Regular' };
-  nodeRef.fontSize = 10;
-  nodeRef.fills = [{ type: 'SOLID', color: { r: 0.55, g: 0.55, b: 0.55 } }];
-  card.appendChild(nodeRef);
+  // Store metadata so we can identify and clean up markers
+  marker.setPluginData('ai-review-note', '1');
+  marker.setPluginData('ai-review-index', String(index));
+  marker.setPluginData('ai-review-nodeId', item.nodeId);
 
-  return card;
+  return marker;
 }
 
 export async function writeStickyNotes(
@@ -115,26 +79,28 @@ export async function writeStickyNotes(
 
   // Sort: issues first, then warnings, then suggestions
   const sorted = [...reviewItems].sort((a, b) => {
-    const order = { issue: 0, warning: 1, suggestion: 2 };
+    const order: Record<string, number> = { issue: 0, warning: 1, suggestion: 2 };
     return (order[a.severity] ?? 3) - (order[b.severity] ?? 3);
   });
 
   const cardsPerNode = new Map<string, number>();
   let created = 0;
 
-  function getAbsoluteXY(node: SceneNode): { x: number; y: number; width: number } {
+  function getAbsoluteXY(node: SceneNode): { x: number; y: number; width: number; height: number } {
     const transform = node.absoluteTransform;
     const x = transform[0][2];
     const y = transform[1][2];
     const width = 'width' in node ? node.width : 0;
-    return { x, y, width };
+    const height = 'height' in node ? node.height : 0;
+    return { x, y, width, height };
   }
 
   const fallback = getAbsoluteXY(anchorNode);
 
-  for (const item of sorted) {
-    const card = createStickyNote(item);
-    figma.currentPage.appendChild(card);
+  for (let i = 0; i < sorted.length; i++) {
+    const item = sorted[i];
+    const marker = createMarker(item, i);
+    figma.currentPage.appendChild(marker);
 
     const target = await figma.getNodeByIdAsync(item.nodeId);
     const targetNode = target && target.type !== 'PAGE' && target.type !== 'DOCUMENT'
@@ -145,8 +111,9 @@ export async function writeStickyNotes(
     const stackIndex = cardsPerNode.get(item.nodeId) ?? 0;
     cardsPerNode.set(item.nodeId, stackIndex + 1);
 
-    card.x = anchor.x + anchor.width + 24;
-    card.y = anchor.y + stackIndex * (card.height + 12);
+    // Place at top-right corner of the target node, stacking horizontally if multiple
+    marker.x = anchor.x + anchor.width - MARKER_SIZE / 2 + stackIndex * (MARKER_SIZE + 4);
+    marker.y = anchor.y - MARKER_SIZE / 2;
     created++;
   }
 
@@ -165,6 +132,7 @@ export async function clearStickyNotes(parent: BaseNode): Promise<number> {
       seen.add(child.id);
 
       const isReviewNote =
+        child.name.startsWith('AI Review #') ||
         child.name.startsWith('AI Review Note:') ||
         child.name === 'AI Review Notes' ||
         child.getPluginData('ai-review-note') === '1';

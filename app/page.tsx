@@ -40,6 +40,7 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
+  const [highlightedMarker, setHighlightedMarker] = useState<number | null>(null);
 
   // Ref to hold pending design data for the current review
   const pendingReview = useRef<{
@@ -109,6 +110,9 @@ export default function Home() {
             timestamp: Date.now(),
           },
         ]);
+      }),
+      onPluginMessage('MARKER_SELECTED', (msg) => {
+        setHighlightedMarker(msg.payload.index);
       }),
       onPluginMessage('SETTINGS_LOADED', (msg) => {
         setSettings(msg.payload);
@@ -280,6 +284,10 @@ export default function Home() {
     sendToPlugin({ type: 'STORE_SETTINGS', payload: newSettings });
   };
 
+  const handleFocusNode = useCallback((nodeId: string) => {
+    sendToPlugin({ type: 'FOCUS_NODE', payload: { nodeId } });
+  }, []);
+
   const handleClearAnnotations = () => {
     sendToPlugin({ type: 'CLEAR_ANNOTATIONS' });
     setShowSettings(false);
@@ -308,7 +316,11 @@ export default function Home() {
       </div>
 
       {/* Chat area */}
-      <ChatWindow messages={messages} />
+      <ChatWindow
+        messages={messages}
+        highlightedMarker={highlightedMarker}
+        onFocusNode={handleFocusNode}
+      />
 
       {/* Quick prompts */}
       <div className="shrink-0">

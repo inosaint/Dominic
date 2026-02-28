@@ -43,7 +43,8 @@ export type UIToPluginMessage =
   | { type: 'WRITE_ANNOTATIONS'; payload: { reviewItems: ReviewItem[] } }
   | { type: 'CLEAR_ANNOTATIONS' }
   | { type: 'STORE_SETTINGS'; payload: Settings }
-  | { type: 'GET_SETTINGS' };
+  | { type: 'GET_SETTINGS' }
+  | { type: 'FOCUS_NODE'; payload: { nodeId: string } };
 
 // Plugin → iframe messages
 export type PluginToUIMessage =
@@ -53,4 +54,5 @@ export type PluginToUIMessage =
   | { type: 'STICKY_NOTES_WRITTEN'; payload: { created: number } }
   | { type: 'ANNOTATIONS_CLEARED' }
   | { type: 'SETTINGS_LOADED'; payload: Settings }
+  | { type: 'MARKER_SELECTED'; payload: { index: number; nodeId: string } }
   | { type: 'ERROR'; payload: { message: string } };

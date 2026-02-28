@@ -6,9 +6,11 @@ import ReviewSummary from './ReviewSummary';
 
 interface Props {
   messages: ChatMessage[];
+  highlightedMarker?: number | null;
+  onFocusNode?: (nodeId: string) => void;
 }
 
-export default function ChatWindow({ messages }: Props) {
+export default function ChatWindow({ messages, highlightedMarker, onFocusNode }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -40,6 +42,8 @@ export default function ChatWindow({ messages }: Props) {
                   <ReviewSummary
                     items={msg.reviewItems}
                     annotationResult={msg.annotationResult}
+                    highlightedIndex={highlightedMarker}
+                    onFocusNode={onFocusNode}
                   />
                 </div>
               )}

@@ -17,6 +17,7 @@ figma.showUI(__html__, { width: 360, height: 640, themeColors: true });
 // --- Selection change listener ---
 figma.on('selectionchange', () => {
   sendSelectionData();
+  checkForMarkerSelection();
 });
 
 function sendSelectionData() {
@@ -38,6 +39,23 @@ function sendSelectionData() {
       childCount: countDescendants(node),
     },
   });
+}
+
+// --- Check if user selected a review marker on canvas ---
+function checkForMarkerSelection() {
+  const selection = figma.currentPage.selection;
+  if (selection.length !== 1) return;
+  const node = selection[0];
+  if (node.getPluginData('ai-review-note') !== '1') return;
+
+  const indexStr = node.getPluginData('ai-review-index');
+  const nodeId = node.getPluginData('ai-review-nodeId');
+  if (indexStr && nodeId) {
+    figma.ui.postMessage({
+      type: 'MARKER_SELECTED',
+      payload: { index: parseInt(indexStr, 10), nodeId },
+    });
+  }
 }
 
 // --- Message handler ---
@@ -170,6 +188,17 @@ figma.ui.onmessage = async (msg: UIToPluginMessage) => {
 
       case 'STORE_SETTINGS': {
         await figma.clientStorage.setAsync(STORAGE_KEY, msg.payload);
+        break;
+      }
+
+      case 'FOCUS_NODE': {
+        const targetId = msg.payload.nodeId;
+        const targetNode = await figma.getNodeByIdAsync(targetId);
+        if (targetNode && targetNode.type !== 'PAGE' && targetNode.type !== 'DOCUMENT') {
+          const sceneNode = targetNode as SceneNode;
+          figma.currentPage.selection = [sceneNode];
+          figma.viewport.scrollAndZoomIntoView([sceneNode]);
+        }
         break;
       }
 
