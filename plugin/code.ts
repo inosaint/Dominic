@@ -8,7 +8,7 @@ import {
   writeAnnotations,
   clearAIAnnotations,
 } from './annotationWriter';
-import { writeStickyNotes, clearStickyNotes } from './stickyNoteWriter';
+import { writeStickyNotes, clearStickyNotes, dismissReviewItem } from './stickyNoteWriter';
 
 const STORAGE_KEY = 'pair-designer-settings';
 
@@ -199,6 +199,15 @@ figma.ui.onmessage = async (msg: UIToPluginMessage) => {
           figma.currentPage.selection = [sceneNode];
           figma.viewport.scrollAndZoomIntoView([sceneNode]);
         }
+        break;
+      }
+
+      case 'DISMISS_REVIEW_ITEM': {
+        dismissReviewItem(msg.payload.index);
+        figma.ui.postMessage({
+          type: 'ITEM_DISMISSED',
+          payload: { index: msg.payload.index },
+        });
         break;
       }
 

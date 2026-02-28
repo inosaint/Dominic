@@ -21,6 +21,8 @@ export interface ReviewItem {
     | 'layout'
     | 'consistency'
     | 'interaction'
+    | 'i18n'
+    | 'tokens'
     | 'general';
   severity: 'suggestion' | 'warning' | 'issue';
 }
@@ -44,7 +46,8 @@ export type UIToPluginMessage =
   | { type: 'CLEAR_ANNOTATIONS' }
   | { type: 'STORE_SETTINGS'; payload: Settings }
   | { type: 'GET_SETTINGS' }
-  | { type: 'FOCUS_NODE'; payload: { nodeId: string } };
+  | { type: 'FOCUS_NODE'; payload: { nodeId: string } }
+  | { type: 'DISMISS_REVIEW_ITEM'; payload: { index: number } };
 
 // Plugin → iframe messages
 export type PluginToUIMessage =
@@ -55,4 +58,5 @@ export type PluginToUIMessage =
   | { type: 'ANNOTATIONS_CLEARED' }
   | { type: 'SETTINGS_LOADED'; payload: Settings }
   | { type: 'MARKER_SELECTED'; payload: { index: number; nodeId: string } }
+  | { type: 'ITEM_DISMISSED'; payload: { index: number } }
   | { type: 'ERROR'; payload: { message: string } };

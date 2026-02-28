@@ -8,13 +8,11 @@ interface Props {
   messages: ChatMessage[];
   highlightedMarker?: number | null;
   onFocusNode?: (nodeId: string) => void;
+  onDismissItem?: (index: number) => void;
+  onClearAll?: () => void;
   nodeMap?: Map<string, string>;
 }
 
-/**
- * Build a regex that matches any known node name in text.
- * Sorted longest-first so "Header Section" matches before "Header".
- */
 function buildNodeRegex(nodeMap: Map<string, string>): RegExp | null {
   const names = Array.from(nodeMap.keys())
     .filter((n) => n.length > 2)
@@ -24,7 +22,6 @@ function buildNodeRegex(nodeMap: Map<string, string>): RegExp | null {
   return new RegExp(`(${escaped.join('|')})`, 'g');
 }
 
-/** Render text with known layer names as clickable links that focus the node in Figma */
 function TextWithNodeLinks({
   text,
   nodeMap,
@@ -83,12 +80,17 @@ function TextWithNodeLinks({
   );
 }
 
-export default function ChatWindow({ messages, highlightedMarker, onFocusNode, nodeMap }: Props) {
+export default function ChatWindow({
+  messages, highlightedMarker, onFocusNode, onDismissItem, onClearAll, nodeMap,
+}: Props) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // Check if any message has review items (for showing clear all)
+  const hasReviewItems = messages.some((m) => m.reviewItems && m.reviewItems.length > 0);
 
   if (messages.length === 0) {
     return (
@@ -131,6 +133,7 @@ export default function ChatWindow({ messages, highlightedMarker, onFocusNode, n
                     annotationResult={msg.annotationResult}
                     highlightedIndex={highlightedMarker}
                     onFocusNode={onFocusNode}
+                    onDismissItem={onDismissItem}
                   />
                 </div>
               )}
@@ -138,6 +141,20 @@ export default function ChatWindow({ messages, highlightedMarker, onFocusNode, n
           </div>
         </div>
       ))}
+
+      {/* Clear all notes button */}
+      {hasReviewItems && onClearAll && (
+        <div className="flex justify-center pt-1 pb-2">
+          <button
+            onClick={onClearAll}
+            className="text-11 px-3 py-1 rounded border border-figma-border
+                       text-figma-text-secondary hover:text-figma-error hover:border-figma-error
+                       transition-colors"
+          >
+            Clear all notes
+          </button>
+        </div>
+      )}
       <div ref={bottomRef} />
     </div>
   );

@@ -146,6 +146,22 @@ export default function Home() {
       onPluginMessage('MARKER_SELECTED', (msg) => {
         setHighlightedMarker(msg.payload.index);
       }),
+      onPluginMessage('ITEM_DISMISSED', (msg) => {
+        const dismissedIndex = msg.payload.index;
+        setMessages((prev) =>
+          prev.map((m) => {
+            if (!m.reviewItems) return m;
+            const filtered = m.reviewItems.filter((_: any, i: number) => i !== dismissedIndex);
+            return {
+              ...m,
+              reviewItems: filtered.length > 0 ? filtered : undefined,
+              content: filtered.length > 0
+                ? `${filtered.length} item${filtered.length !== 1 ? 's' : ''} remaining.`
+                : 'All items dismissed.',
+            };
+          })
+        );
+      }),
       onPluginMessage('SETTINGS_LOADED', (msg) => {
         setSettings(msg.payload);
       }),
@@ -633,6 +649,20 @@ export default function Home() {
     sendToPlugin({ type: 'FOCUS_NODE', payload: { nodeId } });
   }, []);
 
+  const handleDismissItem = useCallback((index: number) => {
+    sendToPlugin({ type: 'DISMISS_REVIEW_ITEM', payload: { index } });
+  }, []);
+
+  const handleClearAllNotes = useCallback(() => {
+    sendToPlugin({ type: 'CLEAR_ANNOTATIONS' });
+    setMessages((prev) =>
+      prev.map((m) => {
+        if (!m.reviewItems) return m;
+        return { ...m, reviewItems: undefined, content: 'All items cleared.' };
+      })
+    );
+  }, []);
+
   const handleClearAnnotations = () => {
     sendToPlugin({ type: 'CLEAR_ANNOTATIONS' });
     setShowSettings(false);
@@ -665,6 +695,8 @@ export default function Home() {
         messages={messages}
         highlightedMarker={highlightedMarker}
         onFocusNode={handleFocusNode}
+        onDismissItem={handleDismissItem}
+        onClearAll={handleClearAllNotes}
         nodeMap={nodeMap}
       />
 
