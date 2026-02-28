@@ -82,7 +82,7 @@ export default function ReviewSummary({
                 onClick={() => onFocusNode?.(item.nodeId)}
                 className={`w-full text-left rounded px-2 py-1.5 text-11 flex items-start gap-2 transition-colors
                   ${isHighlighted
-                    ? 'bg-figma-accent/15 ring-1 ring-figma-accent'
+                    ? 'ring-1 ring-figma-accent bg-[rgba(13,153,255,0.15)]'
                     : 'bg-figma-surface hover:bg-figma-surface-hover'
                   }`}
               >

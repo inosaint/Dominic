@@ -3,22 +3,23 @@ module.exports = {
   content: [
     './app/**/*.{js,ts,jsx,tsx,mdx}',
   ],
+  darkMode: 'class',
   theme: {
     extend: {
       colors: {
         figma: {
-          bg: '#2c2c2c',
-          surface: '#383838',
-          'surface-hover': '#444444',
-          border: '#4d4d4d',
-          text: '#ffffff',
-          'text-secondary': '#b3b3b3',
-          'text-tertiary': '#808080',
-          accent: '#0d99ff',
-          'accent-hover': '#0b87e0',
-          success: '#14ae5c',
-          warning: '#f2994a',
-          error: '#f24822',
+          bg: 'var(--figma-bg)',
+          surface: 'var(--figma-surface)',
+          'surface-hover': 'var(--figma-surface-hover)',
+          border: 'var(--figma-border)',
+          text: 'var(--figma-text)',
+          'text-secondary': 'var(--figma-text-secondary)',
+          'text-tertiary': 'var(--figma-text-tertiary)',
+          accent: 'var(--figma-accent)',
+          'accent-hover': 'var(--figma-accent-hover)',
+          success: 'var(--figma-success)',
+          warning: 'var(--figma-warning)',
+          error: 'var(--figma-error)',
         },
       },
       fontSize: {

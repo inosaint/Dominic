@@ -2,6 +2,42 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Light theme (default) */
+:root {
+  --figma-bg: #ffffff;
+  --figma-surface: #f5f5f5;
+  --figma-surface-hover: #ebebeb;
+  --figma-border: #e0e0e0;
+  --figma-text: #1e1e1e;
+  --figma-text-secondary: #6e6e6e;
+  --figma-text-tertiary: #a0a0a0;
+  --figma-accent: #0d99ff;
+  --figma-accent-hover: #0b87e0;
+  --figma-success: #14ae5c;
+  --figma-warning: #f2994a;
+  --figma-error: #f24822;
+  --scrollbar-thumb: #c4c4c4;
+  --scrollbar-thumb-hover: #a0a0a0;
+}
+
+/* Dark theme */
+.dark {
+  --figma-bg: #2c2c2c;
+  --figma-surface: #383838;
+  --figma-surface-hover: #444444;
+  --figma-border: #4d4d4d;
+  --figma-text: #ffffff;
+  --figma-text-secondary: #b3b3b3;
+  --figma-text-tertiary: #808080;
+  --figma-accent: #0d99ff;
+  --figma-accent-hover: #0b87e0;
+  --figma-success: #14ae5c;
+  --figma-warning: #f2994a;
+  --figma-error: #f24822;
+  --scrollbar-thumb: #4d4d4d;
+  --scrollbar-thumb-hover: #666666;
+}
+
 html,
 body {
   margin: 0;
@@ -11,15 +47,15 @@ body {
 }
 
 body {
-  background-color: #2c2c2c;
-  color: #ffffff;
+  background-color: var(--figma-bg);
+  color: var(--figma-text);
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   font-size: 12px;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Custom scrollbar for dark theme */
+/* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
 }
@@ -29,10 +65,10 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background-color: #4d4d4d;
+  background-color: var(--scrollbar-thumb);
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background-color: #666666;
+  background-color: var(--scrollbar-thumb-hover);
 }

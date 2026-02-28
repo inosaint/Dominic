@@ -21,6 +21,12 @@ function getPluginId(): string {
 // Listen for messages from the Figma plugin sandbox
 if (typeof window !== 'undefined') {
   window.addEventListener('message', (event) => {
+    // Handle theme messages from ui.html wrapper
+    if (event.data?.figmaTheme) {
+      applyTheme(event.data.figmaTheme);
+      return;
+    }
+
     const msg = event.data?.pluginMessage;
     if (!msg || !msg.type) return;
 
@@ -35,6 +41,16 @@ if (typeof window !== 'undefined') {
       wildcardHandlers.forEach((handler) => handler(msg));
     }
   });
+}
+
+function applyTheme(theme: 'light' | 'dark') {
+  if (typeof document === 'undefined') return;
+  const root = document.documentElement;
+  if (theme === 'dark') {
+    root.classList.add('dark');
+  } else {
+    root.classList.remove('dark');
+  }
 }
 
 export function onPluginMessage(type: string, handler: MessageHandler) {
