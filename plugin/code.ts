@@ -109,7 +109,7 @@ figma.ui.onmessage = async (msg: UIToPluginMessage) => {
               type: 'ANNOTATIONS_WRITTEN',
               payload: { written, skipped, annotationsSupported: true },
             });
-          } catch {
+          } catch (_e) {
             // Annotations API not available (likely free plan without Dev Mode)
             figma.ui.postMessage({
               type: 'ANNOTATIONS_WRITTEN',
@@ -156,7 +156,7 @@ figma.ui.onmessage = async (msg: UIToPluginMessage) => {
         try {
           const categoryId = await getOrCreateAIReviewCategory();
           await clearAIAnnotations(selection[0], categoryId);
-        } catch {
+        } catch (_e) {
           // Annotations not available — skip silently
         }
 

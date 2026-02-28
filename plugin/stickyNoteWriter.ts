@@ -186,7 +186,7 @@ export async function writeStickyNotes(
   if (anchorNode.parent && anchorNode.parent.type !== 'DOCUMENT') {
     try {
       (anchorNode.parent as ChildrenMixin).appendChild(container);
-    } catch {
+    } catch (_e) {
       // If we can't add to the same parent, it stays on the page (default)
     }
   }

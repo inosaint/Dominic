@@ -318,7 +318,7 @@ export async function getDesignData(
   try {
     const rawJson = await node.exportAsync({ format: 'JSON_REST_V1' });
     jsonData = pruneForReview(rawJson);
-  } catch {
+  } catch (_e) {
     // Fall back to custom extraction
     jsonData = extractNode(node);
   }
@@ -336,7 +336,7 @@ export async function getDesignData(
         constraint: { type: 'SCALE', value: 2 },
       });
       screenshot = figma.base64Encode(bytes);
-    } catch {
+    } catch (_e) {
       // Screenshot export failed — continue without it
     }
   }
