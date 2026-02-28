@@ -272,11 +272,12 @@ export function extractNode(node: SceneNode, depth: number = 0, maxDepth: number
     // Keep extraction resilient by skipping component-name lookup in this fast sync path.
   }
 
-  // Children (with depth limit)
+  // Children (with depth limit, skip hidden layers)
   if ('children' in node && depth < maxDepth) {
     const children = (node as ChildrenMixin).children as readonly SceneNode[];
-    if (children.length > 0) {
-      extracted.children = children.map((child) =>
+    const visibleChildren = children.filter((child) => child.visible);
+    if (visibleChildren.length > 0) {
+      extracted.children = visibleChildren.map((child) =>
         extractNode(child, depth + 1, maxDepth)
       );
     }
@@ -328,7 +329,13 @@ export function pruneForReview(json: any): any {
   function prune(obj: any, depth: number): any {
     if (obj === null || typeof obj !== 'object') return obj;
     if (Array.isArray(obj)) {
-      return obj.map((item) => prune(item, depth));
+      return obj
+        .filter((item) => {
+          // Drop hidden layers from children arrays
+          if (item && typeof item === 'object' && item.visible === false) return false;
+          return true;
+        })
+        .map((item) => prune(item, depth));
     }
     const result: any = {};
     for (const [key, value] of Object.entries(obj)) {

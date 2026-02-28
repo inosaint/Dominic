@@ -21,7 +21,10 @@ const SEVERITY_COLORS: Record<string, { bg: RGB; text: RGB }> = {
 const MARKER_SIZE = 24;
 
 async function loadFonts() {
-  await figma.loadFontAsync({ family: 'Inter', style: 'Bold' });
+  await Promise.all([
+    figma.loadFontAsync({ family: 'Inter', style: 'Regular' }),
+    figma.loadFontAsync({ family: 'Inter', style: 'Bold' }),
+  ]);
 }
 
 function createMarker(item: ReviewItem, index: number): FrameNode {
@@ -55,8 +58,8 @@ function createMarker(item: ReviewItem, index: number): FrameNode {
 
   // Number label
   const label = figma.createText();
-  label.characters = String(index + 1);
   label.fontName = { family: 'Inter', style: 'Bold' };
+  label.characters = String(index + 1);
   label.fontSize = index < 9 ? 12 : 10; // smaller font for 2-digit numbers
   label.fills = [{ type: 'SOLID', color: colors.text }];
   label.textAlignHorizontal = 'CENTER';
