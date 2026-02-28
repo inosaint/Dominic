@@ -12,7 +12,7 @@ import { writeStickyNotes, clearStickyNotes } from './stickyNoteWriter';
 
 const STORAGE_KEY = 'pair-designer-settings';
 
-figma.showUI(__html__, { width: 320, height: 480, themeColors: true });
+figma.showUI(__html__, { width: 360, height: 640, themeColors: true });
 
 // --- Selection change listener ---
 figma.on('selectionchange', () => {

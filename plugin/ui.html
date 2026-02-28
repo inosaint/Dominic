@@ -15,11 +15,46 @@
       iframe {
         width: 100%;
         height: 100%;
-        border: none;
+        border: 0;
       }
     </style>
   </head>
   <body>
-    <iframe src="http://localhost:3000"></iframe>
+    <script>
+      const pluginId =
+        new URLSearchParams(window.location.search).get('pluginId') || '*';
+
+      const appUrl = new URL('http://localhost:3000/');
+      appUrl.search = window.location.search;
+      appUrl.hash = window.location.hash;
+
+      const iframe = document.createElement('iframe');
+      iframe.src = appUrl.toString();
+      document.body.appendChild(iframe);
+
+      window.addEventListener('message', (event) => {
+        if (event.source === iframe.contentWindow) {
+          // Forward UI -> plugin sandbox only for plugin messages
+          const data = event.data;
+          if (!data || typeof data !== 'object' || !('pluginMessage' in data)) {
+            return;
+          }
+          if (!('pluginId' in data)) {
+            parent.postMessage(
+              { ...data, pluginId },
+              '*'
+            );
+            return;
+          }
+          parent.postMessage(data, '*');
+          return;
+        }
+
+        if (event.source !== iframe.contentWindow && event.data?.pluginMessage) {
+          // Forward plugin sandbox -> UI
+          iframe.contentWindow?.postMessage(event.data, '*');
+        }
+      });
+    </script>
   </body>
 </html>

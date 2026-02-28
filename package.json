@@ -3,11 +3,16 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "concurrently \"next dev\" \"npm run build:plugin -- --watch\"",
+    "clean:next": "node -e \"require('fs').rmSync('.next', { recursive: true, force: true })\"",
+    "dev": "npm run clean:next && concurrently \"next dev -p 3000\" \"npm run build:plugin -- --watch\"",
     "build": "next build && npm run build:plugin",
     "build:plugin": "esbuild plugin/code.ts --bundle --outfile=plugin/code.js --target=es2017 --format=iife",
+    "typecheck:plugin": "tsc -p plugin/tsconfig.json --noEmit",
     "start": "next start",
     "lint": "next lint"
+  },
+  "engines": {
+    "node": "20.x || 22.x"
   },
   "dependencies": {
     "next": "^14.2.0",

@@ -23,7 +23,7 @@ export interface ExtractedNode {
   textAlignHorizontal?: string;
   textAlignVertical?: string;
   // Layout
-  layoutMode?: 'HORIZONTAL' | 'VERTICAL' | 'NONE';
+  layoutMode?: 'HORIZONTAL' | 'VERTICAL' | 'NONE' | 'GRID';
   layoutSizingHorizontal?: 'FIXED' | 'HUG' | 'FILL';
   layoutSizingVertical?: 'FIXED' | 'HUG' | 'FILL';
   itemSpacing?: number;
@@ -149,6 +149,7 @@ function extractCornerRadius(node: SceneNode): number | number[] | undefined {
     }
     return undefined;
   }
+  if (typeof node.cornerRadius !== 'number') return undefined;
   return node.cornerRadius > 0 ? node.cornerRadius : undefined;
 }
 
@@ -187,9 +188,9 @@ export function extractNode(node: SceneNode, depth: number = 0, maxDepth: number
     extracted.fontSize =
       textNode.fontSize === figma.mixed ? 'mixed' : (textNode.fontSize as number);
     extracted.fontFamily =
-      textNode.fontFamily === figma.mixed
+      textNode.fontName === figma.mixed
         ? 'mixed'
-        : (textNode.fontFamily as string);
+        : textNode.fontName.family;
     extracted.fontWeight =
       textNode.fontWeight === figma.mixed
         ? 'mixed'
@@ -230,10 +231,8 @@ export function extractNode(node: SceneNode, depth: number = 0, maxDepth: number
     extracted.isComponent = true;
   } else if (node.type === 'INSTANCE') {
     extracted.isInstance = true;
-    const instance = node as InstanceNode;
-    if (instance.mainComponent) {
-      extracted.mainComponentName = instance.mainComponent.name;
-    }
+    // With documentAccess: "dynamic-page", reading the sync mainComponent getter can throw.
+    // Keep extraction resilient by skipping component-name lookup in this fast sync path.
   }
 
   // Children (with depth limit)

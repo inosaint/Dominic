@@ -3,6 +3,20 @@
 type MessageHandler = (msg: any) => void;
 
 let messageHandlers: Map<string, MessageHandler[]> = new Map();
+let pluginIdCache: string | null | undefined;
+
+function getPluginId(): string {
+  if (pluginIdCache !== undefined) {
+    return pluginIdCache || '*';
+  }
+  if (typeof window === 'undefined') {
+    pluginIdCache = '*';
+    return pluginIdCache;
+  }
+  const params = new URLSearchParams(window.location.search);
+  pluginIdCache = params.get('pluginId');
+  return pluginIdCache || '*';
+}
 
 // Listen for messages from the Figma plugin sandbox
 if (typeof window !== 'undefined') {
@@ -41,6 +55,9 @@ export function onPluginMessage(type: string, handler: MessageHandler) {
 
 export function sendToPlugin(message: any) {
   if (typeof parent !== 'undefined') {
-    parent.postMessage({ pluginMessage: message }, '*');
+    parent.postMessage(
+      { pluginMessage: message, pluginId: getPluginId() },
+      '*'
+    );
   }
 }

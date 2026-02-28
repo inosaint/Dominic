@@ -22,6 +22,17 @@ const DEFAULT_SETTINGS: Settings = {
   outputMode: 'sticky-notes',
 };
 
+function createMessageId(): string {
+  if (
+    typeof globalThis !== 'undefined' &&
+    globalThis.crypto &&
+    typeof globalThis.crypto.randomUUID === 'function'
+  ) {
+    return globalThis.crypto.randomUUID();
+  }
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
 export default function Home() {
   const [selection, setSelection] = useState<SelectionInfoType | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -36,6 +47,7 @@ export default function Home() {
     resolve: (data: { json: object; screenshot?: string }) => void;
     reject: (err: Error) => void;
   } | null>(null);
+  const pendingReviewTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // --- Plugin message listeners ---
   useEffect(() => {
@@ -45,6 +57,10 @@ export default function Home() {
       }),
       onPluginMessage('DESIGN_DATA_READY', (msg) => {
         if (pendingReview.current) {
+          if (pendingReviewTimeout.current) {
+            clearTimeout(pendingReviewTimeout.current);
+            pendingReviewTimeout.current = null;
+          }
           pendingReview.current.resolve(msg.payload);
           pendingReview.current = null;
         }
@@ -87,7 +103,7 @@ export default function Home() {
         setMessages((prev) => [
           ...prev,
           {
-            id: crypto.randomUUID(),
+            id: createMessageId(),
             role: 'assistant',
             content: 'AI review output cleared.',
             timestamp: Date.now(),
@@ -99,10 +115,19 @@ export default function Home() {
       }),
       onPluginMessage('ERROR', (msg) => {
         setIsLoading(false);
+        if (pendingReview.current) {
+          if (pendingReviewTimeout.current) {
+            clearTimeout(pendingReviewTimeout.current);
+            pendingReviewTimeout.current = null;
+          }
+          pendingReview.current.reject(new Error(msg.payload.message));
+          pendingReview.current = null;
+          return;
+        }
         setMessages((prev) => [
           ...prev,
           {
-            id: crypto.randomUUID(),
+            id: createMessageId(),
             role: 'assistant',
             content: `Error: ${msg.payload.message}`,
             timestamp: Date.now(),
@@ -115,7 +140,13 @@ export default function Home() {
     sendToPlugin({ type: 'GET_SELECTION' });
     sendToPlugin({ type: 'GET_SETTINGS' });
 
-    return () => cleanups.forEach((fn) => fn());
+    return () => {
+      cleanups.forEach((fn) => fn());
+      if (pendingReviewTimeout.current) {
+        clearTimeout(pendingReviewTimeout.current);
+        pendingReviewTimeout.current = null;
+      }
+    };
   }, []);
 
   // --- Run a review ---
@@ -127,7 +158,7 @@ export default function Home() {
         setMessages((prev) => [
           ...prev,
           {
-            id: crypto.randomUUID(),
+            id: createMessageId(),
             role: 'assistant',
             content: 'Please set your API key in settings first.',
             timestamp: Date.now(),
@@ -142,7 +173,7 @@ export default function Home() {
       setMessages((prev) => [
         ...prev,
         {
-          id: crypto.randomUUID(),
+          id: createMessageId(),
           role: 'user',
           content: prompt,
           timestamp: Date.now(),
@@ -165,9 +196,10 @@ export default function Home() {
           });
 
           // Timeout after 30s
-          setTimeout(() => {
+          pendingReviewTimeout.current = setTimeout(() => {
             if (pendingReview.current) {
               pendingReview.current = null;
+              pendingReviewTimeout.current = null;
               reject(new Error('Timed out waiting for design data from Figma.'));
             }
           }, 30000);
@@ -199,7 +231,7 @@ export default function Home() {
         setMessages((prev) => [
           ...prev,
           {
-            id: crypto.randomUUID(),
+            id: createMessageId(),
             role: 'assistant',
             content:
               reviewItems.length > 0
@@ -221,7 +253,7 @@ export default function Home() {
         setMessages((prev) => [
           ...prev,
           {
-            id: crypto.randomUUID(),
+            id: createMessageId(),
             role: 'assistant',
             content: `Error: ${err?.message || 'Something went wrong.'}`,
             timestamp: Date.now(),
@@ -254,7 +286,7 @@ export default function Home() {
   };
 
   return (
-    <div className="relative flex flex-col h-[480px] w-[320px] bg-figma-bg">
+    <div className="relative flex flex-col h-full w-full bg-figma-bg">
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-figma-border shrink-0">
         <div className="flex items-center gap-2">

@@ -38,18 +38,28 @@ async function loadFonts() {
   await figma.loadFontAsync({ family: 'Inter', style: 'Regular' });
 }
 
-function createStickyNote(item: ReviewItem, index: number): FrameNode {
+function createStickyNote(item: ReviewItem): FrameNode {
   const colors = SEVERITY_COLORS[item.severity] || SEVERITY_COLORS.suggestion;
 
-  // Outer card frame
+  const cardWidth = 300;
+  const contentWidth = 276; // card width minus horizontal padding
+
+  // Outer card
   const card = figma.createFrame();
-  card.name = `AI Review: ${item.category} (${item.severity})`;
-  card.layoutMode = 'HORIZONTAL';
+  card.name = `AI Review Note: ${item.category} (${item.severity})`;
+  card.layoutMode = 'VERTICAL';
   card.primaryAxisSizingMode = 'AUTO';
-  card.counterAxisSizingMode = 'AUTO';
-  card.itemSpacing = 0;
+  card.counterAxisSizingMode = 'FIXED';
+  card.resize(cardWidth, 1);
+  card.itemSpacing = 6;
+  card.paddingTop = 10;
+  card.paddingBottom = 10;
+  card.paddingLeft = 12;
+  card.paddingRight = 12;
   card.fills = [{ type: 'SOLID', color: colors.bg }];
   card.cornerRadius = 8;
+  card.strokes = [{ type: 'SOLID', color: colors.border }];
+  card.strokeWeight = 1;
   card.effects = [
     {
       type: 'DROP_SHADOW',
@@ -61,34 +71,9 @@ function createStickyNote(item: ReviewItem, index: number): FrameNode {
       blendMode: 'NORMAL',
     },
   ];
+  card.setPluginData('ai-review-note', '1');
 
-  // Left severity stripe
-  const stripe = figma.createFrame();
-  stripe.name = 'severity-stripe';
-  stripe.resize(4, 1);
-  stripe.layoutAlign = 'STRETCH';
-  stripe.layoutGrow = 0;
-  stripe.fills = [{ type: 'SOLID', color: colors.border }];
-  stripe.topLeftRadius = 8;
-  stripe.bottomLeftRadius = 8;
-  card.appendChild(stripe);
-
-  // Content area
-  const content = figma.createFrame();
-  content.name = 'content';
-  content.layoutMode = 'VERTICAL';
-  content.primaryAxisSizingMode = 'AUTO';
-  content.counterAxisSizingMode = 'FIXED';
-  content.resize(240, 1);
-  content.itemSpacing = 6;
-  content.paddingTop = 10;
-  content.paddingBottom = 10;
-  content.paddingLeft = 12;
-  content.paddingRight = 12;
-  content.fills = [];
-  card.appendChild(content);
-
-  // Header row: severity icon + category
+  // Header row
   const header = figma.createText();
   header.name = 'header';
   const severityLabel = item.severity === 'issue' ? 'Issue' : item.severity === 'warning' ? 'Warning' : 'Suggestion';
@@ -96,8 +81,7 @@ function createStickyNote(item: ReviewItem, index: number): FrameNode {
   header.fontName = { family: 'Inter', style: 'Bold' };
   header.fontSize = 11;
   header.fills = [{ type: 'SOLID', color: colors.border }];
-  header.layoutSizingHorizontal = 'FILL';
-  content.appendChild(header);
+  card.appendChild(header);
 
   // Feedback text
   const feedback = figma.createText();
@@ -107,8 +91,9 @@ function createStickyNote(item: ReviewItem, index: number): FrameNode {
   feedback.fontSize = 12;
   feedback.lineHeight = { value: 18, unit: 'PIXELS' };
   feedback.fills = [{ type: 'SOLID', color: { r: 0.15, g: 0.15, b: 0.15 } }];
-  feedback.layoutSizingHorizontal = 'FILL';
-  content.appendChild(feedback);
+  feedback.textAutoResize = 'HEIGHT';
+  feedback.resize(contentWidth, 1);
+  card.appendChild(feedback);
 
   // Node reference
   const nodeRef = figma.createText();
@@ -117,8 +102,7 @@ function createStickyNote(item: ReviewItem, index: number): FrameNode {
   nodeRef.fontName = { family: 'Inter', style: 'Regular' };
   nodeRef.fontSize = 10;
   nodeRef.fills = [{ type: 'SOLID', color: { r: 0.55, g: 0.55, b: 0.55 } }];
-  nodeRef.layoutSizingHorizontal = 'FILL';
-  content.appendChild(nodeRef);
+  card.appendChild(nodeRef);
 
   return card;
 }
@@ -129,82 +113,75 @@ export async function writeStickyNotes(
 ): Promise<{ created: number }> {
   await loadFonts();
 
-  // Container frame for all sticky notes
-  const container = figma.createFrame();
-  container.name = 'AI Review Notes';
-  container.layoutMode = 'VERTICAL';
-  container.primaryAxisSizingMode = 'AUTO';
-  container.counterAxisSizingMode = 'AUTO';
-  container.itemSpacing = 12;
-  container.paddingTop = 16;
-  container.paddingBottom = 16;
-  container.paddingLeft = 16;
-  container.paddingRight = 16;
-  container.fills = [{ type: 'SOLID', color: { r: 0.97, g: 0.97, b: 0.97 } }];
-  container.cornerRadius = 12;
-  container.effects = [
-    {
-      type: 'DROP_SHADOW',
-      color: { r: 0, g: 0, b: 0, a: 0.08 },
-      offset: { x: 0, y: 4 },
-      radius: 16,
-      spread: 0,
-      visible: true,
-      blendMode: 'NORMAL',
-    },
-  ];
-
-  // Title
-  const title = figma.createText();
-  title.name = 'title';
-  title.characters = `AI Review \u00B7 ${reviewItems.length} item${reviewItems.length !== 1 ? 's' : ''}`;
-  title.fontName = { family: 'Inter', style: 'Bold' };
-  title.fontSize = 14;
-  title.fills = [{ type: 'SOLID', color: { r: 0.15, g: 0.15, b: 0.15 } }];
-  container.appendChild(title);
-
   // Sort: issues first, then warnings, then suggestions
   const sorted = [...reviewItems].sort((a, b) => {
     const order = { issue: 0, warning: 1, suggestion: 2 };
     return (order[a.severity] ?? 3) - (order[b.severity] ?? 3);
   });
 
-  for (let i = 0; i < sorted.length; i++) {
-    const card = createStickyNote(sorted[i], i);
-    container.appendChild(card);
+  const cardsPerNode = new Map<string, number>();
+  let created = 0;
+
+  function getAbsoluteXY(node: SceneNode): { x: number; y: number; width: number } {
+    const transform = node.absoluteTransform;
+    const x = transform[0][2];
+    const y = transform[1][2];
+    const width = 'width' in node ? node.width : 0;
+    return { x, y, width };
   }
 
-  // Position to the right of the anchor node with some gap
-  const anchorX = 'x' in anchorNode ? anchorNode.x : 0;
-  const anchorY = 'y' in anchorNode ? anchorNode.y : 0;
-  const anchorWidth = 'width' in anchorNode ? anchorNode.width : 0;
+  const fallback = getAbsoluteXY(anchorNode);
 
-  container.x = anchorX + anchorWidth + 80;
-  container.y = anchorY;
+  for (const item of sorted) {
+    const card = createStickyNote(item);
+    figma.currentPage.appendChild(card);
 
-  // Add to the same parent as the anchor if possible
-  if (anchorNode.parent && anchorNode.parent.type !== 'DOCUMENT') {
-    try {
-      (anchorNode.parent as ChildrenMixin).appendChild(container);
-    } catch (_e) {
-      // If we can't add to the same parent, it stays on the page (default)
-    }
+    const target = await figma.getNodeByIdAsync(item.nodeId);
+    const targetNode = target && target.type !== 'PAGE' && target.type !== 'DOCUMENT'
+      ? (target as SceneNode)
+      : null;
+
+    const anchor = targetNode ? getAbsoluteXY(targetNode) : fallback;
+    const stackIndex = cardsPerNode.get(item.nodeId) ?? 0;
+    cardsPerNode.set(item.nodeId, stackIndex + 1);
+
+    card.x = anchor.x + anchor.width + 24;
+    card.y = anchor.y + stackIndex * (card.height + 12);
+    created++;
   }
 
-  return { created: reviewItems.length };
+  return { created };
 }
 
 export async function clearStickyNotes(parent: BaseNode): Promise<number> {
   let removed = 0;
+  const seen = new Set<string>();
 
-  if ('children' in parent) {
-    const children = [...(parent as ChildrenMixin).children] as SceneNode[];
+  function removeFrom(root: BaseNode) {
+    if (!('children' in root)) return;
+    const children = [...(root as ChildrenMixin).children] as SceneNode[];
     for (const child of children) {
-      if (child.name === 'AI Review Notes') {
+      if (seen.has(child.id)) continue;
+      seen.add(child.id);
+
+      const isReviewNote =
+        child.name.startsWith('AI Review Note:') ||
+        child.name === 'AI Review Notes' ||
+        child.getPluginData('ai-review-note') === '1';
+
+      if (isReviewNote) {
         child.remove();
         removed++;
+        continue;
       }
+
+      removeFrom(child);
     }
+  }
+
+  removeFrom(parent);
+  if (parent !== figma.currentPage) {
+    removeFrom(figma.currentPage);
   }
 
   return removed;

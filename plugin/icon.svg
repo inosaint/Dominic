@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <!-- Background rounded square -->
+  <rect width="128" height="128" rx="24" fill="#7B61FF"/>
+
+  <!-- Face made from "DOmi" in blocky black font -->
+  <!-- D and O as eyes -->
+  <text x="30" y="62" font-family="'Arial Black', 'Impact', sans-serif" font-weight="900" font-size="36" fill="white">D</text>
+  <text x="70" y="62" font-family="'Arial Black', 'Impact', sans-serif" font-weight="900" font-size="36" fill="white">O</text>
+
+  <!-- m as moustache -->
+  <text x="34" y="88" font-family="'Arial Black', 'Impact', sans-serif" font-weight="900" font-size="30" fill="white">m</text>
+
+  <!-- i as mouth/chin -->
+  <text x="56" y="112" font-family="'Arial Black', 'Impact', sans-serif" font-weight="900" font-size="24" fill="white">i</text>
+</svg>
