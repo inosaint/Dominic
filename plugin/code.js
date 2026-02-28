@@ -419,8 +419,7 @@ ${item.feedback}`;
         type: "DROP_SHADOW",
         color: colors.glow,
         offset: { x: 0, y: 0 },
-        radius: 12,
-        spread: 3,
+        radius: 16,
         visible: true,
         blendMode: "NORMAL"
       },
