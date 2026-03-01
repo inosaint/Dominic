@@ -11,20 +11,68 @@ import {
 } from './lib/types';
 import { sendToPlugin, onPluginMessage } from './lib/figmaAPI';
 import { getAgent, getAllAgents, BUILT_IN_AGENTS, CustomAgent, ReviewAgent } from './lib/agents';
+import { callAnthropic } from './lib/providers/anthropic';
+import { callOpenAI } from './lib/providers/openai';
+import { parseReviewResponse } from './lib/parseResponse';
 import SelectionInfo from './components/SelectionInfo';
 import ChatWindow from './components/ChatWindow';
 import QuickPrompts from './components/QuickPrompts';
 import SettingsPanel from './components/SettingsPanel';
 
+const CHAT_MODE_ADDENDUM = `
+
+CHAT MODE:
+You are in a conversation with the user. You may respond in two ways:
+1. If the user asks for a review or analysis, respond with the JSON array as specified above.
+2. If the user asks a follow-up question, wants clarification, or is having a discussion, respond in plain text. Be helpful, specific, and stay in character.
+Do NOT wrap plain text responses in JSON. Just write naturally.`;
+
+const DEFAULT_ANTHROPIC_MODEL = 'claude-sonnet-4-6';
+const DEFAULT_OPENAI_MODEL = 'gpt-4o-mini';
+
+const ICON_DATA_URL = `data:image/svg+xml,${encodeURIComponent('<svg width="128" height="128" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg"><rect width="128" height="128" fill="white"/><path d="M100 60C100 79.8823 83.8823 96 64 96C54.7797 96 28 96 28 96C28 96 28 70.662 28 60C28 40.1177 44.1178 24 64 24C83.8823 24 100 40.1177 100 60Z" fill="#7762F6"/><circle cx="55.1429" cy="60.1429" r="5.14286" fill="#F5F5F0"/><circle cx="72.2858" cy="60.1429" r="5.14286" fill="#F5F5F0"/></svg>')}`;
+
 const DEFAULT_SETTINGS: Settings = {
   provider: 'anthropic',
   apiKey: '',
-  model: 'claude-sonnet-4-6-20250514',
+  model: DEFAULT_ANTHROPIC_MODEL,
   includeScreenshot: true,
   autoClearPrevious: true,
   outputMode: 'sticky-notes',
   customAgents: [],
 };
+
+function normalizeModelForProvider(
+  provider: Settings['provider'],
+  model: string
+): string {
+  const raw = (model || '').trim();
+  if (!raw) return '';
+
+  if (provider === 'anthropic') {
+    if (raw === 'claude-sonnet-4-20250514') return 'claude-sonnet-4-6';
+    if (raw.startsWith('claude-sonnet-4-6')) return 'claude-sonnet-4-6';
+    if (raw.startsWith('claude-haiku-4-5')) return 'claude-haiku-4-5';
+    if (raw.startsWith('claude-opus-4-6')) return 'claude-opus-4-6';
+    return DEFAULT_ANTHROPIC_MODEL;
+  }
+
+  if (provider === 'openai') {
+    if (raw.startsWith('gpt-4o-mini-')) return 'gpt-4o-mini';
+    if (raw.startsWith('gpt-4o-') && raw.split('-').length > 2) return 'gpt-4o';
+    if (raw === 'gpt-4o-mini' || raw === 'gpt-4o') return raw;
+    return DEFAULT_OPENAI_MODEL;
+  }
+
+  return raw;
+}
+
+function normalizeSettings(settings: Settings): Settings {
+  return {
+    ...settings,
+    model: normalizeModelForProvider(settings.provider, settings.model),
+  };
+}
 
 function createMessageId(): string {
   if (
@@ -173,7 +221,8 @@ export default function Home() {
         );
       }),
       onPluginMessage('SETTINGS_LOADED', (msg) => {
-        setSettings(msg.payload);
+        const normalized = normalizeSettings(msg.payload);
+        setSettings(normalized);
       }),
       onPluginMessage('ERROR', (msg) => {
         setIsLoading(false);
@@ -244,7 +293,7 @@ export default function Home() {
     [settings.includeScreenshot]
   );
 
-  // --- Call the review API ---
+  // --- Call LLM providers directly (no server needed) ---
   const callReviewAPI = useCallback(
     async (
       designData: { json: object; screenshot?: string },
@@ -254,26 +303,54 @@ export default function Home() {
       conversationHistory?: ConversationTurn[],
       chatMode?: boolean
     ): Promise<{ items: ReviewItem[]; text?: string }> => {
-      const response = await fetch('/api/review', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      // Resolve system prompt
+      let systemPrompt: string;
+      if (agentSystemPrompt) {
+        systemPrompt = agentSystemPrompt;
+      } else if (agentId) {
+        const agent = getAgent(agentId);
+        systemPrompt = agent?.systemPrompt || BUILT_IN_AGENTS[0].systemPrompt;
+      } else {
+        systemPrompt = BUILT_IN_AGENTS[0].systemPrompt;
+      }
+
+      if (chatMode) {
+        systemPrompt += CHAT_MODE_ADDENDUM;
+      }
+
+      let rawResponse: string;
+      const selectedModel = normalizeModelForProvider(
+        settings.provider,
+        settings.model
+      );
+
+      if (!selectedModel) {
+        throw new Error('Set a model ID in Settings before running a review.');
+      }
+
+      if (settings.provider === 'openai') {
+        rawResponse = await callOpenAI({
+          apiKey: settings.apiKey,
+          model: selectedModel,
           designData: designData.json,
           screenshot: designData.screenshot,
-          userPrompt: prompt,
-          provider: settings.provider,
-          apiKey: settings.apiKey,
-          model: settings.model,
-          agentId,
-          agentSystemPrompt,
+          userPrompt: prompt || 'Do a comprehensive design review.',
+          systemPrompt,
           conversationHistory,
-          chatMode,
-        }),
-      });
+        });
+      } else {
+        rawResponse = await callAnthropic({
+          apiKey: settings.apiKey,
+          model: selectedModel,
+          designData: designData.json,
+          screenshot: designData.screenshot,
+          userPrompt: prompt || 'Do a comprehensive design review.',
+          systemPrompt,
+          conversationHistory,
+        });
+      }
 
-      const result = await response.json();
-      if (result.error) throw new Error(result.error);
-      return { items: result.items || [], text: result.text };
+      return parseReviewResponse(rawResponse);
     },
     [settings.provider, settings.apiKey, settings.model]
   );
@@ -651,8 +728,9 @@ export default function Home() {
   };
 
   const handleSettingsChange = (newSettings: Settings) => {
-    setSettings(newSettings);
-    sendToPlugin({ type: 'STORE_SETTINGS', payload: newSettings });
+    const normalized = normalizeSettings(newSettings);
+    setSettings(normalized);
+    sendToPlugin({ type: 'STORE_SETTINGS', payload: normalized });
   };
 
   const handleFocusNode = useCallback((nodeId: string) => {
@@ -674,24 +752,12 @@ export default function Home() {
 
   return (
     <div className="relative flex flex-col h-full w-full bg-figma-bg">
-      {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-figma-border shrink-0">
-        <div className="flex items-center gap-2">
-          <img src="/icon.svg" alt="Dominic" className="w-5 h-5 rounded" />
-          <h1 className="text-13 font-semibold text-figma-text">Dominic <span className="text-figma-text-secondary font-normal">— Your pair designer</span></h1>
-        </div>
-        <button
-          onClick={() => setShowSettings(!showSettings)}
-          className="text-figma-text-secondary hover:text-figma-text text-[16px] leading-none p-0.5"
-          title="Settings"
-        >
-          &#9881;
-        </button>
-      </div>
-
-      {/* Selection info */}
+      {/* Selection info + settings gear */}
       <div className="shrink-0">
-        <SelectionInfo selection={selection} />
+        <SelectionInfo
+          selection={selection}
+          onOpenSettings={() => setShowSettings(!showSettings)}
+        />
       </div>
 
       {/* Chat area */}

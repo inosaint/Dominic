@@ -11,7 +11,10 @@ export async function callAnthropic(params: {
   systemPrompt: string;
   conversationHistory?: ConversationTurn[];
 }): Promise<string> {
-  const { apiKey, model, designData, screenshot, userPrompt, systemPrompt, conversationHistory } = params;
+  const { apiKey: rawKey, model, designData, screenshot, userPrompt, systemPrompt, conversationHistory } = params;
+
+  // Strip invisible Unicode characters that break browser fetch headers
+  const apiKey = rawKey.replace(/[^\x20-\x7E]/g, '').trim();
 
   const designContext = `DESIGN DATA:\n${JSON.stringify(designData)}`;
 
@@ -59,6 +62,7 @@ export async function callAnthropic(params: {
       'Content-Type': 'application/json',
       'x-api-key': apiKey,
       'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true',
     },
     body: JSON.stringify({
       model,
@@ -70,13 +74,27 @@ export async function callAnthropic(params: {
 
   if (!response.ok) {
     const status = response.status;
+    const body = await response.text();
+    let parsed: any = null;
+    try {
+      parsed = JSON.parse(body);
+    } catch {
+      parsed = null;
+    }
     if (status === 401 || status === 403) {
       throw new Error('Invalid API key. Check your Anthropic API key in settings.');
     }
     if (status === 429) {
       throw new Error('Rate limited. Try again in a moment.');
     }
-    const body = await response.text();
+    if (status === 404 || parsed?.error?.type === 'not_found_error') {
+      const message =
+        parsed?.error?.message ||
+        `Model "${model}" not found for this API key/account.`;
+      throw new Error(
+        `Anthropic model error: ${message} Try one of: claude-opus-4-6, claude-sonnet-4-6, claude-haiku-4-5.`
+      );
+    }
     throw new Error(`Anthropic API error (${status}): ${body}`);
   }
 
