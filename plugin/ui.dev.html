@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Dominic</title>
+    <style>
+      html, body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+      }
+      iframe {
+        width: 100%;
+        height: 100%;
+        border: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <script>
+      const pluginId =
+        new URLSearchParams(window.location.search).get('pluginId') || '*';
+
+      const appUrl = new URL('http://localhost:3000/');
+      appUrl.search = window.location.search;
+      appUrl.hash = window.location.hash;
+
+      const iframe = document.createElement('iframe');
+      iframe.src = appUrl.toString();
+      document.body.appendChild(iframe);
+
+      // --- Theme detection ---
+      // Figma injects --figma-color-bg when themeColors: true.
+      // We detect light vs dark and forward to the inner iframe.
+      function detectTheme() {
+        var bg = getComputedStyle(document.documentElement).getPropertyValue('--figma-color-bg').trim();
+        if (!bg) return 'dark'; // default fallback
+        // Parse rgb(r, g, b) or hex
+        var r = 0, g = 0, b = 0;
+        var rgbMatch = bg.match(/rgb\(\s*(\d+),\s*(\d+),\s*(\d+)\s*\)/);
+        if (rgbMatch) {
+          r = parseInt(rgbMatch[1]);
+          g = parseInt(rgbMatch[2]);
+          b = parseInt(rgbMatch[3]);
+        } else if (bg.charAt(0) === '#') {
+          var hex = bg.slice(1);
+          if (hex.length === 3) hex = hex[0]+hex[0]+hex[1]+hex[1]+hex[2]+hex[2];
+          r = parseInt(hex.slice(0,2), 16);
+          g = parseInt(hex.slice(2,4), 16);
+          b = parseInt(hex.slice(4,6), 16);
+        }
+        // Relative luminance
+        var luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+        return luminance > 0.5 ? 'light' : 'dark';
+      }
+
+      function sendTheme() {
+        var theme = detectTheme();
+        if (iframe.contentWindow) {
+          iframe.contentWindow.postMessage({ figmaTheme: theme }, '*');
+        }
+      }
+
+      // Send theme once iframe loads, then watch for changes
+      iframe.addEventListener('load', function() {
+        sendTheme();
+      });
+
+      // Figma updates the style attribute on <html> when theme changes
+      var observer = new MutationObserver(function() {
+        sendTheme();
+      });
+      observer.observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ['style']
+      });
+
+      // --- Message forwarding ---
+      window.addEventListener('message', function(event) {
+        if (event.source === iframe.contentWindow) {
+          // Forward UI -> plugin sandbox only for plugin messages
+          var data = event.data;
+          if (!data || typeof data !== 'object' || !('pluginMessage' in data)) {
+            return;
+          }
+          if (!('pluginId' in data)) {
+            parent.postMessage(
+              Object.assign({}, data, { pluginId: pluginId }),
+              '*'
+            );
+            return;
+          }
+          parent.postMessage(data, '*');
+          return;
+        }
+
+        if (event.source !== iframe.contentWindow && event.data && event.data.pluginMessage) {
+          // Forward plugin sandbox -> UI
+          if (iframe.contentWindow) {
+            iframe.contentWindow.postMessage(event.data, '*');
+          }
+        }
+      });
+    </script>
+  </body>
+</html>

@@ -11,10 +11,23 @@ import {
 } from './lib/types';
 import { sendToPlugin, onPluginMessage } from './lib/figmaAPI';
 import { getAgent, getAllAgents, BUILT_IN_AGENTS, CustomAgent, ReviewAgent } from './lib/agents';
+import { callAnthropic } from './lib/providers/anthropic';
+import { callOpenAI } from './lib/providers/openai';
+import { parseReviewResponse } from './lib/parseResponse';
 import SelectionInfo from './components/SelectionInfo';
 import ChatWindow from './components/ChatWindow';
 import QuickPrompts from './components/QuickPrompts';
 import SettingsPanel from './components/SettingsPanel';
+
+const CHAT_MODE_ADDENDUM = `
+
+CHAT MODE:
+You are in a conversation with the user. You may respond in two ways:
+1. If the user asks for a review or analysis, respond with the JSON array as specified above.
+2. If the user asks a follow-up question, wants clarification, or is having a discussion, respond in plain text. Be helpful, specific, and stay in character.
+Do NOT wrap plain text responses in JSON. Just write naturally.`;
+
+const ICON_DATA_URL = `data:image/svg+xml,${encodeURIComponent('<svg width="128" height="128" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg"><rect width="128" height="128" fill="white"/><path d="M100 60C100 79.8823 83.8823 96 64 96C54.7797 96 28 96 28 96C28 96 28 70.662 28 60C28 40.1177 44.1178 24 64 24C83.8823 24 100 40.1177 100 60Z" fill="#7762F6"/><circle cx="55.1429" cy="60.1429" r="5.14286" fill="#F5F5F0"/><circle cx="72.2858" cy="60.1429" r="5.14286" fill="#F5F5F0"/></svg>')}`;
 
 const DEFAULT_SETTINGS: Settings = {
   provider: 'anthropic',
@@ -244,7 +257,7 @@ export default function Home() {
     [settings.includeScreenshot]
   );
 
-  // --- Call the review API ---
+  // --- Call LLM providers directly (no server needed) ---
   const callReviewAPI = useCallback(
     async (
       designData: { json: object; screenshot?: string },
@@ -254,26 +267,46 @@ export default function Home() {
       conversationHistory?: ConversationTurn[],
       chatMode?: boolean
     ): Promise<{ items: ReviewItem[]; text?: string }> => {
-      const response = await fetch('/api/review', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      // Resolve system prompt
+      let systemPrompt: string;
+      if (agentSystemPrompt) {
+        systemPrompt = agentSystemPrompt;
+      } else if (agentId) {
+        const agent = getAgent(agentId);
+        systemPrompt = agent?.systemPrompt || BUILT_IN_AGENTS[0].systemPrompt;
+      } else {
+        systemPrompt = BUILT_IN_AGENTS[0].systemPrompt;
+      }
+
+      if (chatMode) {
+        systemPrompt += CHAT_MODE_ADDENDUM;
+      }
+
+      let rawResponse: string;
+
+      if (settings.provider === 'openai') {
+        rawResponse = await callOpenAI({
+          apiKey: settings.apiKey,
+          model: settings.model || 'gpt-4o',
           designData: designData.json,
           screenshot: designData.screenshot,
-          userPrompt: prompt,
-          provider: settings.provider,
-          apiKey: settings.apiKey,
-          model: settings.model,
-          agentId,
-          agentSystemPrompt,
+          userPrompt: prompt || 'Do a comprehensive design review.',
+          systemPrompt,
           conversationHistory,
-          chatMode,
-        }),
-      });
+        });
+      } else {
+        rawResponse = await callAnthropic({
+          apiKey: settings.apiKey,
+          model: settings.model || 'claude-sonnet-4-20250514',
+          designData: designData.json,
+          screenshot: designData.screenshot,
+          userPrompt: prompt || 'Do a comprehensive design review.',
+          systemPrompt,
+          conversationHistory,
+        });
+      }
 
-      const result = await response.json();
-      if (result.error) throw new Error(result.error);
-      return { items: result.items || [], text: result.text };
+      return parseReviewResponse(rawResponse);
     },
     [settings.provider, settings.apiKey, settings.model]
   );
@@ -677,7 +710,7 @@ export default function Home() {
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-figma-border shrink-0">
         <div className="flex items-center gap-2">
-          <img src="/icon.svg" alt="Dominic" className="w-5 h-5 rounded" />
+          <img src={ICON_DATA_URL} alt="Dominic" className="w-5 h-5 rounded" />
           <h1 className="text-13 font-semibold text-figma-text">Dominic <span className="text-figma-text-secondary font-normal">— Your pair designer</span></h1>
         </div>
         <button
