@@ -782,7 +782,7 @@ export default function Home() {
                   includeScreenshot: e.target.checked,
                 })
               }
-              className="rounded-full border-figma-border w-3.5 h-3.5 accent-figma-accent"
+              className="circle-check"
             />
             <span className="text-11 text-figma-text-secondary">
               Include screenshot

@@ -161,7 +161,7 @@ export default function SettingsPanel({
               type="checkbox"
               checked={settings.includeScreenshot}
               onChange={(e) => update({ includeScreenshot: e.target.checked })}
-              className="rounded-full border-figma-border w-3.5 h-3.5 accent-figma-accent"
+              className="circle-check"
             />
             <span className="text-12 text-figma-text">Include screenshot</span>
           </label>
@@ -174,7 +174,7 @@ export default function SettingsPanel({
               type="checkbox"
               checked={settings.autoClearPrevious}
               onChange={(e) => update({ autoClearPrevious: e.target.checked })}
-              className="rounded-full border-figma-border w-3.5 h-3.5 accent-figma-accent"
+              className="circle-check"
             />
             <span className="text-12 text-figma-text">
               Auto-clear previous review output
@@ -192,7 +192,7 @@ export default function SettingsPanel({
               type="checkbox"
               checked={settings.enableAgentChat ?? false}
               onChange={(e) => update({ enableAgentChat: e.target.checked })}
-              className="rounded-full border-figma-border w-3.5 h-3.5 accent-figma-accent"
+              className="circle-check"
             />
             <span className="text-12 text-figma-text">Enable agent chat</span>
           </label>
