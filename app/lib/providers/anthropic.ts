@@ -11,7 +11,10 @@ export async function callAnthropic(params: {
   systemPrompt: string;
   conversationHistory?: ConversationTurn[];
 }): Promise<string> {
-  const { apiKey, model, designData, screenshot, userPrompt, systemPrompt, conversationHistory } = params;
+  const { apiKey: rawKey, model, designData, screenshot, userPrompt, systemPrompt, conversationHistory } = params;
+
+  // Strip invisible Unicode characters that break browser fetch headers
+  const apiKey = rawKey.replace(/[^\x20-\x7E]/g, '').trim();
 
   const designContext = `DESIGN DATA:\n${JSON.stringify(designData)}`;
 
