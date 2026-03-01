@@ -10,6 +10,18 @@ interface Props {
   onClose: () => void;
 }
 
+const SelectChevron = () => (
+  <svg
+    className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-figma-text-secondary"
+    width="10"
+    height="6"
+    viewBox="0 0 10 6"
+    fill="none"
+  >
+    <path d="M1 1L5 5L9 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
 export default function SettingsPanel({
   settings,
   onChange,
@@ -69,20 +81,23 @@ export default function SettingsPanel({
           <label className="block text-11 text-figma-text-secondary mb-1">
             API Provider
           </label>
-          <select
-            value={settings.provider}
-            onChange={(e) => {
-              const provider = e.target.value as 'anthropic' | 'openai';
-              const model =
-                provider === 'anthropic' ? 'claude-sonnet-4-6-20250514' : 'gpt-4o';
-              update({ provider, model });
-            }}
-            className="pill-select w-full bg-figma-surface border border-figma-border rounded-full pl-3 py-1.5
-                       text-12 text-figma-text focus:outline-none focus:border-figma-accent"
-          >
-            <option value="anthropic">Anthropic</option>
-            <option value="openai">OpenAI</option>
-          </select>
+          <div className="relative">
+            <select
+              value={settings.provider}
+              onChange={(e) => {
+                const provider = e.target.value as 'anthropic' | 'openai';
+                const model =
+                  provider === 'anthropic' ? 'claude-sonnet-4-6-20250514' : 'gpt-4o';
+                update({ provider, model });
+              }}
+              className="pill-select w-full bg-figma-surface border border-figma-border rounded-full pl-3 py-1.5
+                         text-12 text-figma-text focus:outline-none focus:border-figma-accent"
+            >
+              <option value="anthropic">Anthropic</option>
+              <option value="openai">OpenAI</option>
+            </select>
+            <SelectChevron />
+          </div>
         </div>
 
         {/* API Key */}
@@ -113,25 +128,28 @@ export default function SettingsPanel({
           <label className="block text-11 text-figma-text-secondary mb-1">
             Model
           </label>
-          <select
-            value={settings.model}
-            onChange={(e) => update({ model: e.target.value })}
-            className="pill-select w-full bg-figma-surface border border-figma-border rounded-full pl-3 py-1.5
-                       text-12 text-figma-text focus:outline-none focus:border-figma-accent"
-          >
-            {settings.provider === 'anthropic' ? (
-              <>
-                <option value="claude-sonnet-4-6-20250514">Sonnet 4.6</option>
-                <option value="claude-haiku-4-5-20251001">Haiku 4.5</option>
-                <option value="claude-opus-4-6-20250514">Opus 4.6</option>
-              </>
-            ) : (
-              <>
-                <option value="gpt-4o">GPT-4o</option>
-                <option value="gpt-4o-mini">GPT-4o Mini</option>
-              </>
-            )}
-          </select>
+          <div className="relative">
+            <select
+              value={settings.model}
+              onChange={(e) => update({ model: e.target.value })}
+              className="pill-select w-full bg-figma-surface border border-figma-border rounded-full pl-3 py-1.5
+                         text-12 text-figma-text focus:outline-none focus:border-figma-accent"
+            >
+              {settings.provider === 'anthropic' ? (
+                <>
+                  <option value="claude-sonnet-4-6-20250514">Sonnet 4.6</option>
+                  <option value="claude-haiku-4-5-20251001">Haiku 4.5</option>
+                  <option value="claude-opus-4-6-20250514">Opus 4.6</option>
+                </>
+              ) : (
+                <>
+                  <option value="gpt-4o">GPT-4o</option>
+                  <option value="gpt-4o-mini">GPT-4o Mini</option>
+                </>
+              )}
+            </select>
+            <SelectChevron />
+          </div>
         </div>
 
         {/* Output mode */}
@@ -139,16 +157,19 @@ export default function SettingsPanel({
           <label className="block text-11 text-figma-text-secondary mb-1">
             Output Mode
           </label>
-          <select
-            value={settings.outputMode || 'sticky-notes'}
-            onChange={(e) => update({ outputMode: e.target.value as OutputMode })}
-            className="pill-select w-full bg-figma-surface border border-figma-border rounded-full pl-3 py-1.5
-                       text-12 text-figma-text focus:outline-none focus:border-figma-accent"
-          >
-            <option value="sticky-notes">Sticky notes on canvas</option>
-            <option value="annotations">Annotations (requires paid plan)</option>
-            <option value="both">Both</option>
-          </select>
+          <div className="relative">
+            <select
+              value={settings.outputMode || 'sticky-notes'}
+              onChange={(e) => update({ outputMode: e.target.value as OutputMode })}
+              className="pill-select w-full bg-figma-surface border border-figma-border rounded-full pl-3 py-1.5
+                         text-12 text-figma-text focus:outline-none focus:border-figma-accent"
+            >
+              <option value="sticky-notes">Sticky notes on canvas</option>
+              <option value="annotations">Annotations (requires paid plan)</option>
+              <option value="both">Both</option>
+            </select>
+            <SelectChevron />
+          </div>
           <p className="text-11 text-figma-text-tertiary mt-1">
             Sticky notes work on all plans. Annotations require Dev Mode (paid).
           </p>
