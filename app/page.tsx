@@ -8,6 +8,7 @@ import {
   ReviewItem,
   ConversationTurn,
   CustomAgentConfig,
+  DesignSystemCacheData,
 } from './lib/types';
 import { sendToPlugin, onPluginMessage } from './lib/figmaAPI';
 import { getAgent, getAllAgents, BUILT_IN_AGENTS, CustomAgent, ReviewAgent } from './lib/agents';
@@ -116,6 +117,10 @@ export default function Home() {
   const [showSettings, setShowSettings] = useState(false);
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [highlightedMarker, setHighlightedMarker] = useState<number | null>(null);
+
+  // Design system cache state
+  const [dsCache, setDsCache] = useState<DesignSystemCacheData | null>(null);
+  const [dsScanLoading, setDsScanLoading] = useState(false);
 
   // Chat mode state
   const [activeAgent, setActiveAgent] = useState<ReviewAgent | null>(null);
@@ -245,11 +250,21 @@ export default function Home() {
           },
         ]);
       }),
+      onPluginMessage('DESIGN_SYSTEM_SCANNED', (msg) => {
+        setDsCache(msg.payload);
+        setDsScanLoading(false);
+      }),
+      onPluginMessage('DESIGN_SYSTEM_CACHE_LOADED', (msg) => {
+        if (msg.payload) {
+          setDsCache(msg.payload);
+        }
+      }),
     ];
 
     // Request initial data
     sendToPlugin({ type: 'GET_SELECTION' });
     sendToPlugin({ type: 'GET_SETTINGS' });
+    sendToPlugin({ type: 'GET_DESIGN_SYSTEM_CACHE' });
 
     return () => {
       cleanups.forEach((fn) => fn());
@@ -318,6 +333,11 @@ export default function Home() {
         systemPrompt += CHAT_MODE_ADDENDUM;
       }
 
+      // Inject cached design system context (compact token summary)
+      if (settings.designSystemCache && dsCache?.promptContext) {
+        systemPrompt += `\n\n${dsCache.promptContext}`;
+      }
+
       let rawResponse: string;
       const selectedModel = normalizeModelForProvider(
         settings.provider,
@@ -352,7 +372,7 @@ export default function Home() {
 
       return parseReviewResponse(rawResponse);
     },
-    [settings.provider, settings.apiKey, settings.model]
+    [settings.provider, settings.apiKey, settings.model, settings.designSystemCache, dsCache]
   );
 
   // --- Run a single-agent review (one-shot) ---
@@ -750,6 +770,11 @@ export default function Home() {
     setShowSettings(false);
   };
 
+  const handleScanDesignSystem = useCallback(() => {
+    setDsScanLoading(true);
+    sendToPlugin({ type: 'SCAN_DESIGN_SYSTEM' });
+  }, []);
+
   return (
     <div className="relative flex flex-col h-full w-full bg-figma-bg">
       {/* Selection info + settings gear */}
@@ -864,6 +889,9 @@ export default function Home() {
           onChange={handleSettingsChange}
           onClearAnnotations={handleClearAnnotations}
           onClose={() => setShowSettings(false)}
+          dsCache={dsCache}
+          dsScanLoading={dsScanLoading}
+          onScanDesignSystem={handleScanDesignSystem}
         />
       )}
     </div>

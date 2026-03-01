@@ -633,6 +633,275 @@ ${item.feedback}`;
     return removed;
   }
 
+  // plugin/designSystemCache.ts
+  function rgbToHex2(r, g, b) {
+    const toHex = (c) => Math.round(c * 255).toString(16).padStart(2, "0");
+    return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+  }
+  function resolveVariableName(binding) {
+    if (!binding || typeof binding !== "object" || !("id" in binding))
+      return void 0;
+    try {
+      const variable = figma.variables.getVariableById(binding.id);
+      return variable == null ? void 0 : variable.name;
+    } catch (e) {
+      return void 0;
+    }
+  }
+  function effectKey(e) {
+    const parts = [e.type.toLowerCase()];
+    if ("radius" in e && e.radius)
+      parts.push(`r${e.radius}`);
+    if ("offset" in e && e.offset)
+      parts.push(`${e.offset.x}x${e.offset.y}`);
+    if ("color" in e && e.color)
+      parts.push(rgbToHex2(e.color.r, e.color.g, e.color.b));
+    return parts.join(" ");
+  }
+  function typoKey(family, size, weight, lh) {
+    return `${family}|${size}|${weight}|${lh != null ? lh : ""}`;
+  }
+  function scanDesignSystem() {
+    const fillColors = {};
+    const strokeColors = {};
+    const typoMap = /* @__PURE__ */ new Map();
+    const paddingCounts = {};
+    const gapCounts = {};
+    const radiiCounts = {};
+    const effectCounts = {};
+    const componentCounts = /* @__PURE__ */ new Map();
+    let nodeCount = 0;
+    function bumpColor(map, hex, token) {
+      if (!map[hex]) {
+        map[hex] = { count: 0, token };
+      }
+      map[hex].count++;
+      if (token && !map[hex].token) {
+        map[hex].token = token;
+      }
+    }
+    function bumpCount(map, value) {
+      const key = String(value);
+      map[key] = (map[key] || 0) + 1;
+    }
+    function walk(node) {
+      if (!node.visible)
+        return;
+      nodeCount++;
+      const bv = "boundVariables" in node ? node.boundVariables : null;
+      if ("fills" in node && node.fills !== figma.mixed) {
+        const fills = node.fills;
+        for (const f of fills) {
+          if (f.visible === false || f.type !== "SOLID")
+            continue;
+          const hex = rgbToHex2(f.color.r, f.color.g, f.color.b);
+          const token = (bv == null ? void 0 : bv.fills) ? resolveVariableName(
+            Array.isArray(bv.fills) ? bv.fills[0] : bv.fills
+          ) : void 0;
+          bumpColor(fillColors, hex, token);
+        }
+      }
+      if ("strokes" in node) {
+        const strokes = node.strokes;
+        for (const s of strokes) {
+          if (s.visible === false || s.type !== "SOLID")
+            continue;
+          const hex = rgbToHex2(s.color.r, s.color.g, s.color.b);
+          const token = (bv == null ? void 0 : bv.strokes) ? resolveVariableName(
+            Array.isArray(bv.strokes) ? bv.strokes[0] : bv.strokes
+          ) : void 0;
+          bumpColor(strokeColors, hex, token);
+        }
+      }
+      if (node.type === "TEXT") {
+        const t = node;
+        const family = t.fontName === figma.mixed ? "mixed" : t.fontName.family;
+        const size = t.fontSize === figma.mixed ? -1 : t.fontSize;
+        const weight = t.fontWeight === figma.mixed ? -1 : t.fontWeight;
+        let lh;
+        if (t.lineHeight !== figma.mixed) {
+          const lineH = t.lineHeight;
+          if (lineH.unit !== "AUTO")
+            lh = Math.round(lineH.value * 100) / 100;
+        }
+        const key = typoKey(family, size, weight, lh);
+        const existing = typoMap.get(key);
+        if (existing) {
+          existing.count++;
+        } else {
+          typoMap.set(key, { family, size, weight, lineHeight: lh, count: 1 });
+        }
+      }
+      if ("layoutMode" in node) {
+        const frame = node;
+        if (frame.layoutMode !== "NONE") {
+          if (frame.itemSpacing > 0)
+            bumpCount(gapCounts, frame.itemSpacing);
+          if (frame.paddingTop > 0)
+            bumpCount(paddingCounts, frame.paddingTop);
+          if (frame.paddingRight > 0)
+            bumpCount(paddingCounts, frame.paddingRight);
+          if (frame.paddingBottom > 0)
+            bumpCount(paddingCounts, frame.paddingBottom);
+          if (frame.paddingLeft > 0)
+            bumpCount(paddingCounts, frame.paddingLeft);
+        }
+      }
+      if ("cornerRadius" in node) {
+        if (node.cornerRadius !== figma.mixed && typeof node.cornerRadius === "number" && node.cornerRadius > 0) {
+          bumpCount(radiiCounts, node.cornerRadius);
+        } else if (node.cornerRadius === figma.mixed) {
+          for (const prop of ["topLeftRadius", "topRightRadius", "bottomRightRadius", "bottomLeftRadius"]) {
+            if (prop in node) {
+              const val = node[prop];
+              if (typeof val === "number" && val > 0)
+                bumpCount(radiiCounts, val);
+            }
+          }
+        }
+      }
+      if ("effects" in node) {
+        const effects = node.effects;
+        for (const e of effects) {
+          if (e.visible === false)
+            continue;
+          const key = effectKey(e);
+          effectCounts[key] = (effectCounts[key] || 0) + 1;
+        }
+      }
+      if (node.type === "INSTANCE") {
+        const compName = node.name;
+        componentCounts.set(compName, (componentCounts.get(compName) || 0) + 1);
+      }
+      if ("children" in node) {
+        for (const child of node.children) {
+          walk(child);
+        }
+      }
+    }
+    for (const child of figma.currentPage.children) {
+      walk(child);
+    }
+    const typography = Array.from(typoMap.values()).sort(
+      (a, b) => b.count - a.count
+    );
+    const components = Array.from(componentCounts.entries()).map(([name, instances]) => ({ name, instances })).sort((a, b) => b.instances - a.instances);
+    return {
+      colors: { fills: fillColors, strokes: strokeColors },
+      typography,
+      spacing: { padding: paddingCounts, gap: gapCounts },
+      radii: radiiCounts,
+      effects: effectCounts,
+      components,
+      scannedAt: Date.now(),
+      nodeCount,
+      pageId: figma.currentPage.id,
+      pageName: figma.currentPage.name
+    };
+  }
+  function cacheToPromptContext(cache) {
+    const lines = [];
+    lines.push(`DESIGN SYSTEM CONTEXT (scanned from "${cache.pageName}", ${cache.nodeCount} nodes):`);
+    lines.push("");
+    const fillEntries = Object.entries(cache.colors.fills).sort(
+      (a, b) => b[1].count - a[1].count
+    );
+    if (fillEntries.length > 0) {
+      lines.push("FILL COLORS (hex \u2192 usage count, token name if bound):");
+      for (const [hex, entry] of fillEntries) {
+        const tokenPart = entry.token ? ` [token: ${entry.token}]` : "";
+        lines.push(`  ${hex} \xD7${entry.count}${tokenPart}`);
+      }
+      lines.push("");
+    }
+    const strokeEntries = Object.entries(cache.colors.strokes).sort(
+      (a, b) => b[1].count - a[1].count
+    );
+    if (strokeEntries.length > 0) {
+      lines.push("STROKE COLORS:");
+      for (const [hex, entry] of strokeEntries) {
+        const tokenPart = entry.token ? ` [token: ${entry.token}]` : "";
+        lines.push(`  ${hex} \xD7${entry.count}${tokenPart}`);
+      }
+      lines.push("");
+    }
+    if (cache.typography.length > 0) {
+      lines.push("TYPE SCALE (family / size / weight / lineHeight \u2192 usage count):");
+      for (const t of cache.typography) {
+        const lhPart = t.lineHeight != null ? ` / lh ${t.lineHeight}` : "";
+        lines.push(`  ${t.family} ${t.size}px w${t.weight}${lhPart} \xD7${t.count}`);
+      }
+      lines.push("");
+    }
+    const padEntries = Object.entries(cache.spacing.padding).sort(
+      (a, b) => Number(a[0]) - Number(b[0])
+    );
+    const gapEntries = Object.entries(cache.spacing.gap).sort(
+      (a, b) => Number(a[0]) - Number(b[0])
+    );
+    if (padEntries.length > 0 || gapEntries.length > 0) {
+      lines.push("SPACING SCALE:");
+      if (padEntries.length > 0) {
+        lines.push(
+          `  Padding values: ${padEntries.map(([v, c]) => `${v}px \xD7${c}`).join(", ")}`
+        );
+      }
+      if (gapEntries.length > 0) {
+        lines.push(
+          `  Gap values: ${gapEntries.map(([v, c]) => `${v}px \xD7${c}`).join(", ")}`
+        );
+      }
+      lines.push("");
+    }
+    const radiiEntries = Object.entries(cache.radii).sort(
+      (a, b) => Number(a[0]) - Number(b[0])
+    );
+    if (radiiEntries.length > 0) {
+      lines.push(
+        `CORNER RADII: ${radiiEntries.map(([v, c]) => `${v}px \xD7${c}`).join(", ")}`
+      );
+      lines.push("");
+    }
+    const effectEntries = Object.entries(cache.effects).sort(
+      (a, b) => b[1] - a[1]
+    );
+    if (effectEntries.length > 0) {
+      lines.push("EFFECTS:");
+      for (const [key, count] of effectEntries) {
+        lines.push(`  ${key} \xD7${count}`);
+      }
+      lines.push("");
+    }
+    if (cache.components.length > 0) {
+      lines.push("COMPONENTS IN USE:");
+      for (const c of cache.components.slice(0, 30)) {
+        lines.push(`  ${c.name} \xD7${c.instances}`);
+      }
+      if (cache.components.length > 30) {
+        lines.push(`  ... and ${cache.components.length - 30} more`);
+      }
+      lines.push("");
+    }
+    lines.push("Use this context to check whether the selected frame follows the design system. Flag deviations from these established patterns.");
+    return lines.join("\n");
+  }
+  var DS_CACHE_KEY = "pair-designer-ds-cache";
+  async function loadCachedDesignSystem() {
+    try {
+      const stored = await figma.clientStorage.getAsync(DS_CACHE_KEY);
+      if (!stored || typeof stored !== "object")
+        return null;
+      if (stored.pageId !== figma.currentPage.id)
+        return null;
+      return stored;
+    } catch (e) {
+      return null;
+    }
+  }
+  async function saveDesignSystemCache(cache) {
+    await figma.clientStorage.setAsync(DS_CACHE_KEY, cache);
+  }
+
   // plugin/code.ts
   var STORAGE_KEY = "pair-designer-settings";
   var DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-4-6";
@@ -864,6 +1133,32 @@ ${item.feedback}`;
           });
           if (!stored || normalized.model !== merged.model) {
             await figma.clientStorage.setAsync(STORAGE_KEY, normalized);
+          }
+          break;
+        }
+        case "SCAN_DESIGN_SYSTEM": {
+          const cache = scanDesignSystem();
+          await saveDesignSystemCache(cache);
+          const promptContext = cacheToPromptContext(cache);
+          figma.ui.postMessage({
+            type: "DESIGN_SYSTEM_SCANNED",
+            payload: { cache, promptContext }
+          });
+          break;
+        }
+        case "GET_DESIGN_SYSTEM_CACHE": {
+          const cached = await loadCachedDesignSystem();
+          if (cached) {
+            const promptContext = cacheToPromptContext(cached);
+            figma.ui.postMessage({
+              type: "DESIGN_SYSTEM_CACHE_LOADED",
+              payload: { cache: cached, promptContext }
+            });
+          } else {
+            figma.ui.postMessage({
+              type: "DESIGN_SYSTEM_CACHE_LOADED",
+              payload: null
+            });
           }
           break;
         }

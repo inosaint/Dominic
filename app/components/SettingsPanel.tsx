@@ -1,13 +1,16 @@
 'use client';
 
 import { useState } from 'react';
-import { Settings, OutputMode, CustomAgentConfig } from '../lib/types';
+import { Settings, OutputMode, CustomAgentConfig, DesignSystemCacheData } from '../lib/types';
 
 interface Props {
   settings: Settings;
   onChange: (settings: Settings) => void;
   onClearAnnotations: () => void;
   onClose: () => void;
+  dsCache: DesignSystemCacheData | null;
+  dsScanLoading: boolean;
+  onScanDesignSystem: () => void;
 }
 
 const SelectChevron = () => (
@@ -27,6 +30,9 @@ export default function SettingsPanel({
   onChange,
   onClearAnnotations,
   onClose,
+  dsCache,
+  dsScanLoading,
+  onScanDesignSystem,
 }: Props) {
   const [showAgentForm, setShowAgentForm] = useState(false);
   const [newAgentName, setNewAgentName] = useState('');
@@ -220,6 +226,42 @@ export default function SettingsPanel({
           <p className="text-11 text-figma-text-tertiary ml-6">
             Chat back and forth with individual review agents.
           </p>
+
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={settings.designSystemCache ?? false}
+              onChange={(e) => update({ designSystemCache: e.target.checked })}
+              className="circle-check"
+            />
+            <span className="text-12 text-figma-text">Design system context</span>
+          </label>
+          <p className="text-11 text-figma-text-tertiary ml-6">
+            Scan your file to learn colors, type scale, spacing, and components.
+            Agents use this to give token-aware feedback with less tokens.
+          </p>
+
+          {(settings.designSystemCache ?? false) && (
+            <div className="ml-6 space-y-1.5">
+              <button
+                onClick={onScanDesignSystem}
+                disabled={dsScanLoading}
+                className="w-full py-1.5 text-11 rounded-full border border-figma-accent text-figma-accent
+                           hover:bg-figma-accent hover:text-white disabled:opacity-40
+                           transition-colors"
+              >
+                {dsScanLoading ? 'Scanning...' : dsCache ? 'Rescan design system' : 'Scan design system'}
+              </button>
+              {dsCache && (
+                <p className="text-11 text-figma-text-tertiary">
+                  Cached: {(dsCache.cache as any).nodeCount} nodes scanned
+                  {(dsCache.cache as any).scannedAt && (
+                    <> &middot; {new Date((dsCache.cache as any).scannedAt).toLocaleTimeString()}</>
+                  )}
+                </p>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Custom Agents */}

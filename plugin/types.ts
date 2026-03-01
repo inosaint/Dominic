@@ -47,7 +47,9 @@ export type UIToPluginMessage =
   | { type: 'STORE_SETTINGS'; payload: Settings }
   | { type: 'GET_SETTINGS' }
   | { type: 'FOCUS_NODE'; payload: { nodeId: string } }
-  | { type: 'DISMISS_REVIEW_ITEM'; payload: { index: number } };
+  | { type: 'DISMISS_REVIEW_ITEM'; payload: { index: number } }
+  | { type: 'SCAN_DESIGN_SYSTEM' }
+  | { type: 'GET_DESIGN_SYSTEM_CACHE' };
 
 // Plugin → iframe messages
 export type PluginToUIMessage =
@@ -59,4 +61,6 @@ export type PluginToUIMessage =
   | { type: 'SETTINGS_LOADED'; payload: Settings }
   | { type: 'MARKER_SELECTED'; payload: { index: number; nodeId: string } }
   | { type: 'ITEM_DISMISSED'; payload: { index: number } }
+  | { type: 'DESIGN_SYSTEM_SCANNED'; payload: { cache: object; promptContext: string } }
+  | { type: 'DESIGN_SYSTEM_CACHE_LOADED'; payload: { cache: object; promptContext: string } | null }
   | { type: 'ERROR'; payload: { message: string } };

@@ -47,6 +47,12 @@ export interface Settings {
   outputMode: OutputMode;
   customAgents?: CustomAgentConfig[];
   enableAgentChat?: boolean;
+  designSystemCache?: boolean;
+}
+
+export interface DesignSystemCacheData {
+  cache: object;
+  promptContext: string;
 }
 
 export interface ChatMessage {

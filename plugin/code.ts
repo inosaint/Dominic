@@ -9,6 +9,12 @@ import {
   clearAIAnnotations,
 } from './annotationWriter';
 import { writeStickyNotes, clearStickyNotes, dismissReviewItem } from './stickyNoteWriter';
+import {
+  scanDesignSystem,
+  cacheToPromptContext,
+  loadCachedDesignSystem,
+  saveDesignSystemCache,
+} from './designSystemCache';
 
 const STORAGE_KEY = 'pair-designer-settings';
 const DEFAULT_ANTHROPIC_MODEL = 'claude-sonnet-4-6';
@@ -274,6 +280,34 @@ figma.ui.onmessage = async (msg: UIToPluginMessage) => {
         });
         if (!stored || normalized.model !== merged.model) {
           await figma.clientStorage.setAsync(STORAGE_KEY, normalized);
+        }
+        break;
+      }
+
+      case 'SCAN_DESIGN_SYSTEM': {
+        const cache = scanDesignSystem();
+        await saveDesignSystemCache(cache);
+        const promptContext = cacheToPromptContext(cache);
+        figma.ui.postMessage({
+          type: 'DESIGN_SYSTEM_SCANNED',
+          payload: { cache, promptContext },
+        });
+        break;
+      }
+
+      case 'GET_DESIGN_SYSTEM_CACHE': {
+        const cached = await loadCachedDesignSystem();
+        if (cached) {
+          const promptContext = cacheToPromptContext(cached);
+          figma.ui.postMessage({
+            type: 'DESIGN_SYSTEM_CACHE_LOADED',
+            payload: { cache: cached, promptContext },
+          });
+        } else {
+          figma.ui.postMessage({
+            type: 'DESIGN_SYSTEM_CACHE_LOADED',
+            payload: null,
+          });
         }
         break;
       }
