@@ -707,24 +707,12 @@ export default function Home() {
 
   return (
     <div className="relative flex flex-col h-full w-full bg-figma-bg">
-      {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-figma-border shrink-0">
-        <div className="flex items-center gap-2">
-          <img src={ICON_DATA_URL} alt="Dominic" className="w-5 h-5 rounded" />
-          <h1 className="text-13 font-semibold text-figma-text">Dominic <span className="text-figma-text-secondary font-normal">— Your pair designer</span></h1>
-        </div>
-        <button
-          onClick={() => setShowSettings(!showSettings)}
-          className="text-figma-text-secondary hover:text-figma-text text-[16px] leading-none p-0.5"
-          title="Settings"
-        >
-          &#9881;
-        </button>
-      </div>
-
-      {/* Selection info */}
+      {/* Selection info + settings gear */}
       <div className="shrink-0">
-        <SelectionInfo selection={selection} />
+        <SelectionInfo
+          selection={selection}
+          onOpenSettings={() => setShowSettings(!showSettings)}
+        />
       </div>
 
       {/* Chat area */}
