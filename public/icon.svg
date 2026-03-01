@@ -1,15 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
-  <!-- Background rounded square -->
-  <rect width="128" height="128" rx="24" fill="#7B61FF"/>
-
-  <!-- Face made from "DOmi" in blocky black font -->
-  <!-- D and O as eyes -->
-  <text x="30" y="62" font-family="'Arial Black', 'Impact', sans-serif" font-weight="900" font-size="36" fill="white">D</text>
-  <text x="70" y="62" font-family="'Arial Black', 'Impact', sans-serif" font-weight="900" font-size="36" fill="white">O</text>
-
-  <!-- m as moustache -->
-  <text x="34" y="88" font-family="'Arial Black', 'Impact', sans-serif" font-weight="900" font-size="30" fill="white">m</text>
-
-  <!-- i as mouth/chin -->
-  <text x="56" y="112" font-family="'Arial Black', 'Impact', sans-serif" font-weight="900" font-size="24" fill="white">i</text>
+<svg width="128" height="128" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg">
+<rect width="128" height="128" fill="white"/>
+<path d="M100 60C100 79.8823 83.8823 96 64 96C54.7797 96 28 96 28 96C28 96 28 70.662 28 60C28 40.1177 44.1178 24 64 24C83.8823 24 100 40.1177 100 60Z" fill="#7762F6"/>
+<circle cx="55.1429" cy="60.1429" r="5.14286" fill="#F5F5F0"/>
+<circle cx="72.2858" cy="60.1429" r="5.14286" fill="#F5F5F0"/>
 </svg>
