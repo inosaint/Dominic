@@ -77,7 +77,7 @@ export default function SettingsPanel({
                 provider === 'anthropic' ? 'claude-sonnet-4-6-20250514' : 'gpt-4o';
               update({ provider, model });
             }}
-            className="w-full bg-figma-surface border border-figma-border rounded-full pl-3 pr-8 py-1.5
+            className="pill-select w-full bg-figma-surface border border-figma-border rounded-full pl-3 py-1.5
                        text-12 text-figma-text focus:outline-none focus:border-figma-accent"
           >
             <option value="anthropic">Anthropic</option>
@@ -116,7 +116,7 @@ export default function SettingsPanel({
           <select
             value={settings.model}
             onChange={(e) => update({ model: e.target.value })}
-            className="w-full bg-figma-surface border border-figma-border rounded-full pl-3 pr-8 py-1.5
+            className="pill-select w-full bg-figma-surface border border-figma-border rounded-full pl-3 py-1.5
                        text-12 text-figma-text focus:outline-none focus:border-figma-accent"
           >
             {settings.provider === 'anthropic' ? (
@@ -142,7 +142,7 @@ export default function SettingsPanel({
           <select
             value={settings.outputMode || 'sticky-notes'}
             onChange={(e) => update({ outputMode: e.target.value as OutputMode })}
-            className="w-full bg-figma-surface border border-figma-border rounded-full pl-3 pr-8 py-1.5
+            className="pill-select w-full bg-figma-surface border border-figma-border rounded-full pl-3 py-1.5
                        text-12 text-figma-text focus:outline-none focus:border-figma-accent"
           >
             <option value="sticky-notes">Sticky notes on canvas</option>
@@ -183,7 +183,7 @@ export default function SettingsPanel({
         </div>
 
         {/* Experimental */}
-        <div className="pt-2 border-t border-figma-border space-y-2">
+        <div className="space-y-2">
           <label className="block text-11 text-figma-text-secondary mb-1">
             Experimental
           </label>
@@ -202,7 +202,7 @@ export default function SettingsPanel({
         </div>
 
         {/* Custom Agents */}
-        <div className="pt-2 border-t border-figma-border">
+        <div>
           <label className="block text-11 text-figma-text-secondary mb-2">
             Custom Review Agents
           </label>
@@ -296,7 +296,7 @@ export default function SettingsPanel({
         </div>
 
         {/* Clear all review output */}
-        <div className="pt-2 border-t border-figma-border">
+        <div>
           <button
             onClick={onClearAnnotations}
             className="w-full py-1.5 text-12 rounded-full border border-figma-error text-figma-error
