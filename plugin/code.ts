@@ -231,7 +231,7 @@ figma.ui.onmessage = async (msg: UIToPluginMessage) => {
         const defaults: Settings = {
           provider: 'anthropic',
           apiKey: '',
-          model: 'claude-sonnet-4-6-20250514',
+          model: 'claude-sonnet-4-6',
           includeScreenshot: true,
           autoClearPrevious: true,
           outputMode: 'sticky-notes',

@@ -32,7 +32,7 @@ const ICON_DATA_URL = `data:image/svg+xml,${encodeURIComponent('<svg width="128"
 const DEFAULT_SETTINGS: Settings = {
   provider: 'anthropic',
   apiKey: '',
-  model: 'claude-sonnet-4-6-20250514',
+  model: 'claude-sonnet-4-6',
   includeScreenshot: true,
   autoClearPrevious: true,
   outputMode: 'sticky-notes',
@@ -297,7 +297,7 @@ export default function Home() {
       } else {
         rawResponse = await callAnthropic({
           apiKey: settings.apiKey,
-          model: settings.model || 'claude-sonnet-4-20250514',
+          model: settings.model || 'claude-sonnet-4-6',
           designData: designData.json,
           screenshot: designData.screenshot,
           userPrompt: prompt || 'Do a comprehensive design review.',
