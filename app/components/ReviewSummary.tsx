@@ -82,7 +82,7 @@ export default function ReviewSummary({
             return (
               <div
                 key={i}
-                className={`relative rounded px-2 py-1.5 text-11 flex items-start gap-2 transition-colors group
+                className={`relative rounded-lg px-2 py-1.5 text-11 flex items-start gap-2 transition-colors group
                   ${isHighlighted
                     ? 'ring-1 ring-figma-accent bg-[rgba(13,153,255,0.15)]'
                     : 'bg-figma-surface hover:bg-figma-surface-hover'
@@ -119,7 +119,7 @@ export default function ReviewSummary({
                       onDismissItem(i);
                     }}
                     className="shrink-0 opacity-0 group-hover:opacity-100 w-5 h-5 flex items-center justify-center
-                               rounded text-figma-text-tertiary hover:text-figma-error hover:bg-figma-surface
+                               rounded-full text-figma-text-tertiary hover:text-figma-error hover:bg-figma-surface
                                transition-all text-[13px] leading-none mt-0.5"
                     title="Dismiss this item"
                   >

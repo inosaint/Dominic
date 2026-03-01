@@ -704,7 +704,7 @@ export default function Home() {
             </span>
             <button
               onClick={endChat}
-              className="text-11 px-2 py-0.5 rounded border border-figma-border
+              className="text-11 px-2 py-0.5 rounded-full border border-figma-border
                          text-figma-text-secondary hover:text-figma-text hover:border-figma-text-secondary
                          transition-colors"
             >
@@ -717,6 +717,7 @@ export default function Home() {
             onStartChat={startChat}
             disabled={isLoading || !selection}
             customAgents={settings.customAgents}
+            enableAgentChat={settings.enableAgentChat}
           />
         )}
       </div>
@@ -737,7 +738,7 @@ export default function Home() {
                 : 'Ask about this frame...'
             }
             disabled={isLoading || !selection}
-            className="flex-1 bg-figma-surface border border-figma-border rounded px-2 py-1.5
+            className="flex-1 bg-figma-surface border border-figma-border rounded-lg px-3 py-1.5
                        text-12 text-figma-text placeholder:text-figma-text-tertiary
                        focus:outline-none focus:border-figma-accent
                        disabled:opacity-40 disabled:cursor-not-allowed"
@@ -745,7 +746,7 @@ export default function Home() {
           <button
             type="submit"
             disabled={isLoading || !selection || !inputValue.trim()}
-            className="shrink-0 w-7 h-7 flex items-center justify-center rounded
+            className="shrink-0 w-7 h-7 flex items-center justify-center rounded-lg
                        bg-figma-accent text-white text-13
                        hover:bg-figma-accent-hover
                        disabled:opacity-40 disabled:cursor-not-allowed

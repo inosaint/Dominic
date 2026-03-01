@@ -1,7 +1,7 @@
 'use client';
 
-import { useRef, useEffect, useMemo } from 'react';
-import { ChatMessage } from '../lib/types';
+import { useRef, useEffect, useMemo, useState, useCallback } from 'react';
+import { ChatMessage, ReviewItem } from '../lib/types';
 import ReviewSummary from './ReviewSummary';
 
 interface Props {
@@ -11,6 +11,31 @@ interface Props {
   onDismissItem?: (index: number) => void;
   onClearAll?: () => void;
   nodeMap?: Map<string, string>;
+}
+
+/** Collect all review items across messages and format as a structured LLM prompt. */
+function formatReviewForLLM(messages: ChatMessage[]): string {
+  const allItems: ReviewItem[] = [];
+  for (const msg of messages) {
+    if (msg.reviewItems) allItems.push(...msg.reviewItems);
+  }
+  if (allItems.length === 0) return '';
+
+  const lines = [
+    'The following design review feedback was generated. Please address each item:',
+    '',
+  ];
+
+  for (let i = 0; i < allItems.length; i++) {
+    const item = allItems[i];
+    lines.push(
+      `${i + 1}. [${item.severity.toUpperCase()}] ${item.category} (node: ${item.nodeId})`,
+      `   ${item.feedback}`,
+      '',
+    );
+  }
+
+  return lines.join('\n');
 }
 
 function buildNodeRegex(nodeMap: Map<string, string>): RegExp | null {
@@ -84,9 +109,19 @@ export default function ChatWindow({
   messages, highlightedMarker, onFocusNode, onDismissItem, onClearAll, nodeMap,
 }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  const handleCopy = useCallback(() => {
+    const text = formatReviewForLLM(messages);
+    if (!text) return;
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
   }, [messages]);
 
   // Check if any message has review items (for showing clear all)
@@ -142,17 +177,27 @@ export default function ChatWindow({
         </div>
       ))}
 
-      {/* Clear all notes button */}
-      {hasReviewItems && onClearAll && (
-        <div className="flex justify-start pt-1 pb-2 pl-7">
+      {/* Copy / Clear action row */}
+      {hasReviewItems && (
+        <div className="flex items-center justify-between pt-1 pb-2 pl-7 pr-3">
           <button
-            onClick={onClearAll}
-            className="text-11 px-3 py-1 rounded border border-figma-border
-                       text-figma-text-secondary hover:text-figma-error hover:border-figma-error
+            onClick={handleCopy}
+            className="text-11 px-3 py-1 rounded-full border border-figma-border
+                       text-figma-text-secondary hover:text-figma-accent hover:border-figma-accent
                        transition-colors"
           >
-            Clear all notes
+            {copied ? 'Copied!' : 'Copy feedback'}
           </button>
+          {onClearAll && (
+            <button
+              onClick={onClearAll}
+              className="text-11 px-3 py-1 rounded-full border border-figma-border
+                         text-figma-text-secondary hover:text-figma-error hover:border-figma-error
+                         transition-colors"
+            >
+              Clear all
+            </button>
+          )}
         </div>
       )}
       <div ref={bottomRef} />

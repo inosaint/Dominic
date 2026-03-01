@@ -14,27 +14,27 @@ export const QUICK_PROMPTS: QuickPrompt[] = [
     allAgents: true,
   },
   {
-    label: 'Visual design',
+    label: '\u{1F3A8} Visual design',
     prompt: 'Review the visual design: layout, hierarchy, spacing, color harmony, and overall composition.',
     agentId: 'oscar',
   },
   {
-    label: 'Usability',
+    label: '\u{1F9EA} Usability',
     prompt: 'Review the usability: is the interface clear, intuitive, and easy to use?',
     agentId: 'rita',
   },
   {
-    label: 'Accessibility',
+    label: '\u267F Accessibility',
     prompt: 'Review this design for accessibility against WCAG 2.1 AA standards.',
     agentId: 'lex',
   },
   {
-    label: 'Design tokens',
+    label: '\u{1F517} Design tokens',
     prompt: 'Check design token and system compliance: are colors, spacing, and components properly tokenized?',
     agentId: 'toki',
   },
   {
-    label: 'Localization',
+    label: '\u{1F30D} Localization',
     prompt: 'Check localization readiness: will this design work across languages and locales?',
     agentId: 'luna',
   },

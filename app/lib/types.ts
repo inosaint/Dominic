@@ -45,6 +45,7 @@ export interface Settings {
   autoClearPrevious: boolean;
   outputMode: OutputMode;
   customAgents?: CustomAgentConfig[];
+  enableAgentChat?: boolean;
 }
 
 export interface ChatMessage {
