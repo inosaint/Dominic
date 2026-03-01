@@ -19,7 +19,7 @@ import SettingsPanel from './components/SettingsPanel';
 const DEFAULT_SETTINGS: Settings = {
   provider: 'anthropic',
   apiKey: '',
-  model: 'claude-sonnet-4-20250514',
+  model: 'claude-sonnet-4-6-20250514',
   includeScreenshot: true,
   autoClearPrevious: true,
   outputMode: 'sticky-notes',
@@ -87,7 +87,17 @@ export default function Home() {
   useEffect(() => {
     const cleanups = [
       onPluginMessage('SELECTION_DATA', (msg) => {
-        setSelection(msg.payload);
+        if (msg.payload === null) {
+          setSelection(null);
+        } else {
+          setSelection((prev) => {
+            // Preserve existing thumbnail when the plugin re-sends the same node without one
+            if (prev && prev.id === msg.payload.id && prev.thumbnail && !msg.payload.thumbnail) {
+              return { ...msg.payload, thumbnail: prev.thumbnail };
+            }
+            return msg.payload;
+          });
+        }
       }),
       onPluginMessage('DESIGN_DATA_READY', (msg) => {
         if (pendingReview.current) {
@@ -772,7 +782,7 @@ export default function Home() {
                   includeScreenshot: e.target.checked,
                 })
               }
-              className="rounded border-figma-border"
+              className="rounded-full border-figma-border w-3.5 h-3.5 accent-figma-accent"
             />
             <span className="text-11 text-figma-text-secondary">
               Include screenshot

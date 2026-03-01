@@ -74,10 +74,10 @@ export default function SettingsPanel({
             onChange={(e) => {
               const provider = e.target.value as 'anthropic' | 'openai';
               const model =
-                provider === 'anthropic' ? 'claude-sonnet-4-20250514' : 'gpt-4o';
+                provider === 'anthropic' ? 'claude-sonnet-4-6-20250514' : 'gpt-4o';
               update({ provider, model });
             }}
-            className="w-full bg-figma-surface border border-figma-border rounded-lg px-2 py-1.5
+            className="w-full bg-figma-surface border border-figma-border rounded-full px-3 py-1.5
                        text-12 text-figma-text focus:outline-none focus:border-figma-accent"
           >
             <option value="anthropic">Anthropic</option>
@@ -99,7 +99,7 @@ export default function SettingsPanel({
                 ? 'sk-ant-...'
                 : 'sk-...'
             }
-            className="w-full bg-figma-surface border border-figma-border rounded-lg px-2 py-1.5
+            className="w-full bg-figma-surface border border-figma-border rounded-full px-3 py-1.5
                        text-12 text-figma-text placeholder:text-figma-text-tertiary
                        focus:outline-none focus:border-figma-accent"
           />
@@ -113,13 +113,25 @@ export default function SettingsPanel({
           <label className="block text-11 text-figma-text-secondary mb-1">
             Model
           </label>
-          <input
-            type="text"
+          <select
             value={settings.model}
             onChange={(e) => update({ model: e.target.value })}
-            className="w-full bg-figma-surface border border-figma-border rounded-lg px-2 py-1.5
+            className="w-full bg-figma-surface border border-figma-border rounded-full px-3 py-1.5
                        text-12 text-figma-text focus:outline-none focus:border-figma-accent"
-          />
+          >
+            {settings.provider === 'anthropic' ? (
+              <>
+                <option value="claude-sonnet-4-6-20250514">Sonnet 4.6</option>
+                <option value="claude-haiku-4-5-20251001">Haiku 4.5</option>
+                <option value="claude-opus-4-6-20250514">Opus 4.6</option>
+              </>
+            ) : (
+              <>
+                <option value="gpt-4o">GPT-4o</option>
+                <option value="gpt-4o-mini">GPT-4o Mini</option>
+              </>
+            )}
+          </select>
         </div>
 
         {/* Output mode */}
@@ -130,7 +142,7 @@ export default function SettingsPanel({
           <select
             value={settings.outputMode || 'sticky-notes'}
             onChange={(e) => update({ outputMode: e.target.value as OutputMode })}
-            className="w-full bg-figma-surface border border-figma-border rounded-lg px-2 py-1.5
+            className="w-full bg-figma-surface border border-figma-border rounded-full px-3 py-1.5
                        text-12 text-figma-text focus:outline-none focus:border-figma-accent"
           >
             <option value="sticky-notes">Sticky notes on canvas</option>
@@ -149,7 +161,7 @@ export default function SettingsPanel({
               type="checkbox"
               checked={settings.includeScreenshot}
               onChange={(e) => update({ includeScreenshot: e.target.checked })}
-              className="rounded border-figma-border"
+              className="rounded-full border-figma-border w-3.5 h-3.5 accent-figma-accent"
             />
             <span className="text-12 text-figma-text">Include screenshot</span>
           </label>
@@ -162,7 +174,7 @@ export default function SettingsPanel({
               type="checkbox"
               checked={settings.autoClearPrevious}
               onChange={(e) => update({ autoClearPrevious: e.target.checked })}
-              className="rounded border-figma-border"
+              className="rounded-full border-figma-border w-3.5 h-3.5 accent-figma-accent"
             />
             <span className="text-12 text-figma-text">
               Auto-clear previous review output
@@ -180,7 +192,7 @@ export default function SettingsPanel({
               type="checkbox"
               checked={settings.enableAgentChat ?? false}
               onChange={(e) => update({ enableAgentChat: e.target.checked })}
-              className="rounded border-figma-border"
+              className="rounded-full border-figma-border w-3.5 h-3.5 accent-figma-accent"
             />
             <span className="text-12 text-figma-text">Enable agent chat</span>
           </label>
@@ -199,7 +211,7 @@ export default function SettingsPanel({
           {(settings.customAgents || []).map((agent) => (
             <div
               key={agent.id}
-              className="flex items-center justify-between bg-figma-surface rounded-lg px-2 py-1.5 mb-1"
+              className="flex items-center justify-between bg-figma-surface rounded-full px-3 py-1.5 mb-1"
             >
               <span className="text-12 text-figma-text">
                 {agent.emoji} {agent.name}
@@ -224,7 +236,7 @@ export default function SettingsPanel({
                   onChange={(e) => setNewAgentEmoji(e.target.value)}
                   placeholder="Emoji"
                   maxLength={4}
-                  className="w-12 bg-figma-surface border border-figma-border rounded-lg px-2 py-1
+                  className="w-12 bg-figma-surface border border-figma-border rounded-full px-2 py-1
                              text-12 text-figma-text text-center focus:outline-none focus:border-figma-accent"
                 />
                 <input
@@ -232,7 +244,7 @@ export default function SettingsPanel({
                   value={newAgentName}
                   onChange={(e) => setNewAgentName(e.target.value)}
                   placeholder="Name"
-                  className="flex-1 bg-figma-surface border border-figma-border rounded-lg px-2 py-1
+                  className="flex-1 bg-figma-surface border border-figma-border rounded-full px-2 py-1
                              text-12 text-figma-text focus:outline-none focus:border-figma-accent"
                 />
               </div>
@@ -241,7 +253,7 @@ export default function SettingsPanel({
                 value={newAgentSubtitle}
                 onChange={(e) => setNewAgentSubtitle(e.target.value)}
                 placeholder="Short description (e.g. Brand guidelines)"
-                className="w-full bg-figma-surface border border-figma-border rounded-lg px-2 py-1
+                className="w-full bg-figma-surface border border-figma-border rounded-full px-2 py-1
                            text-12 text-figma-text focus:outline-none focus:border-figma-accent"
               />
               <textarea
@@ -249,7 +261,7 @@ export default function SettingsPanel({
                 onChange={(e) => setNewAgentPrompt(e.target.value)}
                 placeholder="Paste the agent's system prompt here. Describe their expertise, personality, and what rules they should check..."
                 rows={6}
-                className="w-full bg-figma-surface border border-figma-border rounded-lg px-2 py-1.5
+                className="w-full bg-figma-surface border border-figma-border rounded-2xl px-3 py-1.5
                            text-12 text-figma-text placeholder:text-figma-text-tertiary
                            focus:outline-none focus:border-figma-accent resize-y"
               />
@@ -257,14 +269,14 @@ export default function SettingsPanel({
                 <button
                   onClick={addCustomAgent}
                   disabled={!newAgentName.trim() || !newAgentPrompt.trim()}
-                  className="flex-1 py-1 text-11 rounded-lg bg-figma-accent text-white
+                  className="flex-1 py-1 text-11 rounded-full bg-figma-accent text-white
                              hover:bg-figma-accent-hover disabled:opacity-40 transition-colors"
                 >
                   Add agent
                 </button>
                 <button
                   onClick={() => setShowAgentForm(false)}
-                  className="px-3 py-1 text-11 rounded-lg border border-figma-border text-figma-text-secondary
+                  className="px-3 py-1 text-11 rounded-full border border-figma-border text-figma-text-secondary
                              hover:bg-figma-surface transition-colors"
                 >
                   Cancel
@@ -274,7 +286,7 @@ export default function SettingsPanel({
           ) : (
             <button
               onClick={() => setShowAgentForm(true)}
-              className="w-full py-1.5 text-11 rounded-lg border border-dashed border-figma-border
+              className="w-full py-1.5 text-11 rounded-full border border-dashed border-figma-border
                          text-figma-text-secondary hover:border-figma-accent hover:text-figma-accent
                          transition-colors mt-1"
             >
@@ -287,7 +299,7 @@ export default function SettingsPanel({
         <div className="pt-2 border-t border-figma-border">
           <button
             onClick={onClearAnnotations}
-            className="w-full py-1.5 text-12 rounded-lg border border-figma-error text-figma-error
+            className="w-full py-1.5 text-12 rounded-full border border-figma-error text-figma-error
                        hover:bg-figma-error hover:text-white transition-colors"
           >
             Clear all AI review output

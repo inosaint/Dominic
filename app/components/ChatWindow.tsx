@@ -159,7 +159,7 @@ export default function ChatWindow({
               </span>
               <div className={`text-12 min-w-0 ${
                 isUser
-                  ? 'text-figma-accent text-right'
+                  ? 'bg-figma-accent text-white rounded-2xl rounded-tr-sm px-3 py-1.5'
                   : 'text-figma-text font-semibold'
               }`}>
                 <p>
@@ -199,7 +199,7 @@ export default function ChatWindow({
 
       {/* Copy / Clear action row */}
       {hasReviewItems && (
-        <div className="flex items-center justify-between pt-1 pb-2 pl-7 pr-3">
+        <div className="flex items-center justify-between pt-1 pb-2">
           <button
             onClick={handleCopy}
             className="text-11 px-3 py-1 rounded-full border border-figma-border
