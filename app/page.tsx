@@ -27,17 +27,52 @@ You are in a conversation with the user. You may respond in two ways:
 2. If the user asks a follow-up question, wants clarification, or is having a discussion, respond in plain text. Be helpful, specific, and stay in character.
 Do NOT wrap plain text responses in JSON. Just write naturally.`;
 
+const DEFAULT_ANTHROPIC_MODEL = 'claude-sonnet-4-6';
+const DEFAULT_OPENAI_MODEL = 'gpt-4o-mini';
+
 const ICON_DATA_URL = `data:image/svg+xml,${encodeURIComponent('<svg width="128" height="128" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg"><rect width="128" height="128" fill="white"/><path d="M100 60C100 79.8823 83.8823 96 64 96C54.7797 96 28 96 28 96C28 96 28 70.662 28 60C28 40.1177 44.1178 24 64 24C83.8823 24 100 40.1177 100 60Z" fill="#7762F6"/><circle cx="55.1429" cy="60.1429" r="5.14286" fill="#F5F5F0"/><circle cx="72.2858" cy="60.1429" r="5.14286" fill="#F5F5F0"/></svg>')}`;
 
 const DEFAULT_SETTINGS: Settings = {
   provider: 'anthropic',
   apiKey: '',
-  model: 'claude-sonnet-4-6',
+  model: DEFAULT_ANTHROPIC_MODEL,
   includeScreenshot: true,
   autoClearPrevious: true,
   outputMode: 'sticky-notes',
   customAgents: [],
 };
+
+function normalizeModelForProvider(
+  provider: Settings['provider'],
+  model: string
+): string {
+  const raw = (model || '').trim();
+  if (!raw) return '';
+
+  if (provider === 'anthropic') {
+    if (raw === 'claude-sonnet-4-20250514') return 'claude-sonnet-4-6';
+    if (raw.startsWith('claude-sonnet-4-6')) return 'claude-sonnet-4-6';
+    if (raw.startsWith('claude-haiku-4-5')) return 'claude-haiku-4-5';
+    if (raw.startsWith('claude-opus-4-6')) return 'claude-opus-4-6';
+    return DEFAULT_ANTHROPIC_MODEL;
+  }
+
+  if (provider === 'openai') {
+    if (raw.startsWith('gpt-4o-mini-')) return 'gpt-4o-mini';
+    if (raw.startsWith('gpt-4o-') && raw.split('-').length > 2) return 'gpt-4o';
+    if (raw === 'gpt-4o-mini' || raw === 'gpt-4o') return raw;
+    return DEFAULT_OPENAI_MODEL;
+  }
+
+  return raw;
+}
+
+function normalizeSettings(settings: Settings): Settings {
+  return {
+    ...settings,
+    model: normalizeModelForProvider(settings.provider, settings.model),
+  };
+}
 
 function createMessageId(): string {
   if (
@@ -186,7 +221,8 @@ export default function Home() {
         );
       }),
       onPluginMessage('SETTINGS_LOADED', (msg) => {
-        setSettings(msg.payload);
+        const normalized = normalizeSettings(msg.payload);
+        setSettings(normalized);
       }),
       onPluginMessage('ERROR', (msg) => {
         setIsLoading(false);
@@ -283,11 +319,19 @@ export default function Home() {
       }
 
       let rawResponse: string;
+      const selectedModel = normalizeModelForProvider(
+        settings.provider,
+        settings.model
+      );
+
+      if (!selectedModel) {
+        throw new Error('Set a model ID in Settings before running a review.');
+      }
 
       if (settings.provider === 'openai') {
         rawResponse = await callOpenAI({
           apiKey: settings.apiKey,
-          model: settings.model || 'gpt-4o',
+          model: selectedModel,
           designData: designData.json,
           screenshot: designData.screenshot,
           userPrompt: prompt || 'Do a comprehensive design review.',
@@ -297,7 +341,7 @@ export default function Home() {
       } else {
         rawResponse = await callAnthropic({
           apiKey: settings.apiKey,
-          model: settings.model || 'claude-sonnet-4-6',
+          model: selectedModel,
           designData: designData.json,
           screenshot: designData.screenshot,
           userPrompt: prompt || 'Do a comprehensive design review.',
@@ -684,8 +728,9 @@ export default function Home() {
   };
 
   const handleSettingsChange = (newSettings: Settings) => {
-    setSettings(newSettings);
-    sendToPlugin({ type: 'STORE_SETTINGS', payload: newSettings });
+    const normalized = normalizeSettings(newSettings);
+    setSettings(normalized);
+    sendToPlugin({ type: 'STORE_SETTINGS', payload: normalized });
   };
 
   const handleFocusNode = useCallback((nodeId: string) => {

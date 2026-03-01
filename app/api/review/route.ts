@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
     if (provider === 'openai') {
       rawResponse = await callOpenAI({
         apiKey,
-        model: model || 'gpt-4o',
+        model: model || 'gpt-4o-mini',
         designData,
         screenshot,
         userPrompt: userPrompt || 'Do a comprehensive design review.',
@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
     } else {
       rawResponse = await callAnthropic({
         apiKey,
-        model: model || 'claude-sonnet-4-20250514',
+        model: model || 'claude-sonnet-4-6',
         designData,
         screenshot,
         userPrompt: userPrompt || 'Do a comprehensive design review.',

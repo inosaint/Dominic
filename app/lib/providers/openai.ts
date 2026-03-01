@@ -73,13 +73,32 @@ export async function callOpenAI(params: {
 
   if (!response.ok) {
     const status = response.status;
+    const body = await response.text();
+    let parsed: any = null;
+    try {
+      parsed = JSON.parse(body);
+    } catch {
+      parsed = null;
+    }
     if (status === 401 || status === 403) {
       throw new Error('Invalid API key. Check your OpenAI API key in settings.');
     }
     if (status === 429) {
       throw new Error('Rate limited. Try again in a moment.');
     }
-    const body = await response.text();
+    const isModelError =
+      status === 404 ||
+      parsed?.error?.code === 'model_not_found' ||
+      (parsed?.error?.type === 'invalid_request_error' &&
+        /model/i.test(parsed?.error?.message || ''));
+    if (isModelError) {
+      const message =
+        parsed?.error?.message ||
+        `Model "${model}" not found for this API key/account.`;
+      throw new Error(
+        `OpenAI model error: ${message} Use an exact model ID available to your account (for example: gpt-4o or gpt-4o-mini).`
+      );
+    }
     throw new Error(`OpenAI API error (${status}): ${body}`);
   }
 

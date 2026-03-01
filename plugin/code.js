@@ -635,6 +635,40 @@ ${item.feedback}`;
 
   // plugin/code.ts
   var STORAGE_KEY = "pair-designer-settings";
+  var DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-4-6";
+  var DEFAULT_OPENAI_MODEL = "gpt-4o-mini";
+  function normalizeModel(provider, model) {
+    const raw = (model || "").trim();
+    if (!raw) {
+      return provider === "anthropic" ? DEFAULT_ANTHROPIC_MODEL : DEFAULT_OPENAI_MODEL;
+    }
+    if (provider === "anthropic") {
+      if (raw === "claude-sonnet-4-20250514")
+        return "claude-sonnet-4-6";
+      if (raw.startsWith("claude-sonnet-4-6"))
+        return "claude-sonnet-4-6";
+      if (raw.startsWith("claude-haiku-4-5"))
+        return "claude-haiku-4-5";
+      if (raw.startsWith("claude-opus-4-6"))
+        return "claude-opus-4-6";
+      return DEFAULT_ANTHROPIC_MODEL;
+    }
+    if (provider === "openai") {
+      if (raw.startsWith("gpt-4o-mini-"))
+        return "gpt-4o-mini";
+      if (raw.startsWith("gpt-4o-") && raw.split("-").length > 2)
+        return "gpt-4o";
+      if (raw === "gpt-4o-mini" || raw === "gpt-4o")
+        return raw;
+      return DEFAULT_OPENAI_MODEL;
+    }
+    return raw;
+  }
+  function normalizeSettings(settings) {
+    return __spreadProps(__spreadValues({}, settings), {
+      model: normalizeModel(settings.provider, settings.model)
+    });
+  }
   figma.showUI(__html__, { width: 360, height: 640, themeColors: true });
   figma.on("selectionchange", () => {
     sendSelectionData();
@@ -791,7 +825,7 @@ ${item.feedback}`;
           break;
         }
         case "STORE_SETTINGS": {
-          await figma.clientStorage.setAsync(STORAGE_KEY, msg.payload);
+          await figma.clientStorage.setAsync(STORAGE_KEY, normalizeSettings(msg.payload));
           break;
         }
         case "FOCUS_NODE": {
@@ -817,15 +851,20 @@ ${item.feedback}`;
           const defaults = {
             provider: "anthropic",
             apiKey: "",
-            model: "claude-sonnet-4-6",
+            model: DEFAULT_ANTHROPIC_MODEL,
             includeScreenshot: true,
             autoClearPrevious: true,
             outputMode: "sticky-notes"
           };
+          const merged = stored ? __spreadValues(__spreadValues({}, defaults), stored) : defaults;
+          const normalized = normalizeSettings(merged);
           figma.ui.postMessage({
             type: "SETTINGS_LOADED",
-            payload: stored ? __spreadValues(__spreadValues({}, defaults), stored) : defaults
+            payload: normalized
           });
+          if (!stored || normalized.model !== merged.model) {
+            await figma.clientStorage.setAsync(STORAGE_KEY, normalized);
+          }
           break;
         }
       }

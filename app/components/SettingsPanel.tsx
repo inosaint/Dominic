@@ -87,7 +87,7 @@ export default function SettingsPanel({
               onChange={(e) => {
                 const provider = e.target.value as 'anthropic' | 'openai';
                 const model =
-                  provider === 'anthropic' ? 'claude-sonnet-4-6' : 'gpt-4o';
+                  provider === 'anthropic' ? 'claude-sonnet-4-6' : 'gpt-4o-mini';
                 update({ provider, model });
               }}
               className="pill-select w-full bg-figma-surface border border-figma-border rounded-full pl-3 py-1.5
@@ -137,9 +137,9 @@ export default function SettingsPanel({
             >
               {settings.provider === 'anthropic' ? (
                 <>
-                  <option value="claude-sonnet-4-6">Sonnet 4.6</option>
-                  <option value="claude-haiku-4-5-20251001">Haiku 4.5</option>
-                  <option value="claude-opus-4-6">Opus 4.6</option>
+                  <option value="claude-opus-4-6">Claude Opus 4.6</option>
+                  <option value="claude-sonnet-4-6">Claude Sonnet 4.6</option>
+                  <option value="claude-haiku-4-5">Claude Haiku 4.5</option>
                 </>
               ) : (
                 <>
