@@ -329,6 +329,13 @@ export default function SettingsPanel({
             Removes AI Review annotations and sticky notes from the selected frame.
           </p>
         </div>
+
+        {/* Version */}
+        <div className="text-center pt-2 pb-1">
+          <p className="text-11 text-figma-text-tertiary">
+            Dominic v0.1.0 <span className="inline-block bg-figma-surface border border-figma-border rounded-full px-1.5 text-10 text-figma-text-tertiary align-middle">alpha</span>
+          </p>
+        </div>
       </div>
     </div>
   );

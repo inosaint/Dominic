@@ -8,8 +8,7 @@
   "networkAccess": {
     "allowedDomains": [
       "https://api.anthropic.com",
-      "https://api.openai.com",
-      "http://localhost:3000"
+      "https://api.openai.com"
     ],
     "reasoning": "LLM API calls for design review"
   },
