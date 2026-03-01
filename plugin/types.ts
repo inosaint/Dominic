@@ -49,7 +49,8 @@ export type UIToPluginMessage =
   | { type: 'FOCUS_NODE'; payload: { nodeId: string } }
   | { type: 'DISMISS_REVIEW_ITEM'; payload: { index: number } }
   | { type: 'SCAN_DESIGN_SYSTEM' }
-  | { type: 'GET_DESIGN_SYSTEM_CACHE' };
+  | { type: 'GET_DESIGN_SYSTEM_CACHE' }
+  | { type: 'IMPORT_DESIGN_SYSTEM_CACHE'; payload: { cache: object } };
 
 // Plugin → iframe messages
 export type PluginToUIMessage =

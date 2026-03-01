@@ -311,6 +311,17 @@ figma.ui.onmessage = async (msg: UIToPluginMessage) => {
         }
         break;
       }
+
+      case 'IMPORT_DESIGN_SYSTEM_CACHE': {
+        const imported = msg.payload.cache;
+        await saveDesignSystemCache(imported as any);
+        const promptCtx = cacheToPromptContext(imported as any);
+        figma.ui.postMessage({
+          type: 'DESIGN_SYSTEM_SCANNED',
+          payload: { cache: imported, promptContext: promptCtx },
+        });
+        break;
+      }
     }
   } catch (err: any) {
     figma.ui.postMessage({

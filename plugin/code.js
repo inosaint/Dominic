@@ -1162,6 +1162,16 @@ ${item.feedback}`;
           }
           break;
         }
+        case "IMPORT_DESIGN_SYSTEM_CACHE": {
+          const imported = msg.payload.cache;
+          await saveDesignSystemCache(imported);
+          const promptCtx = cacheToPromptContext(imported);
+          figma.ui.postMessage({
+            type: "DESIGN_SYSTEM_SCANNED",
+            payload: { cache: imported, promptContext: promptCtx }
+          });
+          break;
+        }
       }
     } catch (err) {
       figma.ui.postMessage({

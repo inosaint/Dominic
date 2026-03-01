@@ -51,8 +51,33 @@ export interface Settings {
 }
 
 export interface DesignSystemCacheData {
-  cache: object;
+  cache: DesignSystemCache;
   promptContext: string;
+}
+
+export interface DesignSystemCache {
+  colors: {
+    fills: Record<string, { count: number; token?: string }>;
+    strokes: Record<string, { count: number; token?: string }>;
+  };
+  typography: Array<{
+    family: string;
+    size: number;
+    weight: number;
+    lineHeight?: number;
+    count: number;
+  }>;
+  spacing: {
+    padding: Record<string, number>;
+    gap: Record<string, number>;
+  };
+  radii: Record<string, number>;
+  effects: Record<string, number>;
+  components: Array<{ name: string; instances: number }>;
+  scannedAt: number;
+  nodeCount: number;
+  pageId: string;
+  pageName: string;
 }
 
 export interface ChatMessage {
