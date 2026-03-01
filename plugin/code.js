@@ -1,6 +1,8 @@
 "use strict";
 (() => {
   var __defProp = Object.defineProperty;
+  var __defProps = Object.defineProperties;
+  var __getOwnPropDescs = Object.getOwnPropertyDescriptors;
   var __getOwnPropSymbols = Object.getOwnPropertySymbols;
   var __hasOwnProp = Object.prototype.hasOwnProperty;
   var __propIsEnum = Object.prototype.propertyIsEnumerable;
@@ -16,6 +18,7 @@
       }
     return a;
   };
+  var __spreadProps = (a, b) => __defProps(a, __getOwnPropDescs(b));
 
   // plugin/extractDesignData.ts
   function rgbToHex(r, g, b) {
@@ -644,17 +647,28 @@ ${item.feedback}`;
       return;
     }
     const node = selection[0];
-    figma.ui.postMessage({
-      type: "SELECTION_DATA",
-      payload: {
-        id: node.id,
-        name: node.name,
-        type: node.type,
-        width: "width" in node ? Math.round(node.width) : 0,
-        height: "height" in node ? Math.round(node.height) : 0,
-        childCount: countDescendants(node)
-      }
-    });
+    const payload = {
+      id: node.id,
+      name: node.name,
+      type: node.type,
+      width: "width" in node ? Math.round(node.width) : 0,
+      height: "height" in node ? Math.round(node.height) : 0,
+      childCount: countDescendants(node)
+    };
+    figma.ui.postMessage({ type: "SELECTION_DATA", payload });
+    if ("exportAsync" in node) {
+      node.exportAsync({
+        format: "PNG",
+        constraint: { type: "WIDTH", value: 64 }
+      }).then((bytes) => {
+        const base64 = figma.base64Encode(bytes);
+        figma.ui.postMessage({
+          type: "SELECTION_DATA",
+          payload: __spreadProps(__spreadValues({}, payload), { thumbnail: `data:image/png;base64,${base64}` })
+        });
+      }).catch(() => {
+      });
+    }
   }
   function checkForMarkerSelection() {
     const selection = figma.currentPage.selection;

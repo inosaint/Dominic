@@ -28,17 +28,32 @@ function sendSelectionData() {
   }
 
   const node = selection[0];
-  figma.ui.postMessage({
-    type: 'SELECTION_DATA',
-    payload: {
-      id: node.id,
-      name: node.name,
-      type: node.type,
-      width: 'width' in node ? Math.round(node.width) : 0,
-      height: 'height' in node ? Math.round(node.height) : 0,
-      childCount: countDescendants(node),
-    },
-  });
+  const payload: Record<string, unknown> = {
+    id: node.id,
+    name: node.name,
+    type: node.type,
+    width: 'width' in node ? Math.round(node.width) : 0,
+    height: 'height' in node ? Math.round(node.height) : 0,
+    childCount: countDescendants(node),
+  };
+
+  // Export a small thumbnail (fire and forget — send basic data first, update with thumbnail)
+  figma.ui.postMessage({ type: 'SELECTION_DATA', payload });
+
+  if ('exportAsync' in node) {
+    (node as SceneNode & ExportMixin).exportAsync({
+      format: 'PNG',
+      constraint: { type: 'WIDTH', value: 64 },
+    }).then((bytes: Uint8Array) => {
+      const base64 = figma.base64Encode(bytes);
+      figma.ui.postMessage({
+        type: 'SELECTION_DATA',
+        payload: { ...payload, thumbnail: `data:image/png;base64,${base64}` },
+      });
+    }).catch(() => {
+      // Thumbnail export failed — no-op, basic data already sent
+    });
+  }
 }
 
 // --- Check if user selected a review marker on canvas ---

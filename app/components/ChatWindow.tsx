@@ -11,6 +11,7 @@ interface Props {
   onDismissItem?: (index: number) => void;
   onClearAll?: () => void;
   nodeMap?: Map<string, string>;
+  isLoading?: boolean;
 }
 
 /** Collect all review items across messages and format as a structured LLM prompt. */
@@ -106,7 +107,7 @@ function TextWithNodeLinks({
 }
 
 export default function ChatWindow({
-  messages, highlightedMarker, onFocusNode, onDismissItem, onClearAll, nodeMap,
+  messages, highlightedMarker, onFocusNode, onDismissItem, onClearAll, nodeMap, isLoading,
 }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const [copied, setCopied] = useState(false);
@@ -139,43 +140,62 @@ export default function ChatWindow({
 
   return (
     <div className="flex-1 overflow-y-auto p-3 space-y-3">
-      {messages.map((msg) => (
-        <div key={msg.id}>
-          <div className="flex items-start gap-2">
-            <span className="text-11 text-figma-text-tertiary font-medium shrink-0 mt-0.5">
-              {msg.role === 'user'
-                ? 'You'
-                : msg.agentName
-                  ? `${msg.agentEmoji || ''} ${msg.agentName}`
-                  : 'AI'}:
-            </span>
-            <div className="text-12 text-figma-text min-w-0">
-              <p>
-                {nodeMap && nodeMap.size > 0 ? (
-                  <TextWithNodeLinks
-                    text={msg.content}
-                    nodeMap={nodeMap}
-                    onFocusNode={onFocusNode}
-                  />
-                ) : (
-                  <span className="whitespace-pre-wrap break-words">{msg.content}</span>
+      {messages.map((msg) => {
+        const isUser = msg.role === 'user';
+
+        return (
+          <div key={msg.id} className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
+            <div className={`max-w-[85%] ${isUser ? 'items-end' : 'items-start'}`}>
+              <span className={`block text-11 font-medium mb-0.5 ${
+                isUser
+                  ? 'text-right text-figma-text-tertiary'
+                  : 'text-left text-figma-text-tertiary'
+              }`}>
+                {isUser
+                  ? 'You'
+                  : msg.agentName
+                    ? `${msg.agentEmoji || ''} ${msg.agentName}`
+                    : 'AI'}
+              </span>
+              <div className={`text-12 min-w-0 ${
+                isUser
+                  ? 'text-figma-accent text-right'
+                  : 'text-figma-text font-semibold'
+              }`}>
+                <p>
+                  {nodeMap && nodeMap.size > 0 && !isUser ? (
+                    <TextWithNodeLinks
+                      text={msg.content}
+                      nodeMap={nodeMap}
+                      onFocusNode={onFocusNode}
+                    />
+                  ) : (
+                    <span className="whitespace-pre-wrap break-words">{msg.content}</span>
+                  )}
+                </p>
+                {msg.reviewItems && msg.reviewItems.length > 0 && (
+                  <div className="mt-1.5 text-left font-normal">
+                    <ReviewSummary
+                      items={msg.reviewItems}
+                      annotationResult={msg.annotationResult}
+                      highlightedIndex={highlightedMarker}
+                      onFocusNode={onFocusNode}
+                      onDismissItem={onDismissItem}
+                    />
+                  </div>
                 )}
-              </p>
-              {msg.reviewItems && msg.reviewItems.length > 0 && (
-                <div className="mt-1.5">
-                  <ReviewSummary
-                    items={msg.reviewItems}
-                    annotationResult={msg.annotationResult}
-                    highlightedIndex={highlightedMarker}
-                    onFocusNode={onFocusNode}
-                    onDismissItem={onDismissItem}
-                  />
-                </div>
-              )}
+              </div>
             </div>
           </div>
+        );
+      })}
+
+      {/* Reviewing indicator */}
+      {isLoading && (
+        <div className="flex justify-start">
+          <span className="text-12 text-figma-text-tertiary italic">reviewing...</span>
         </div>
-      ))}
+      )}
 
       {/* Copy / Clear action row */}
       {hasReviewItems && (

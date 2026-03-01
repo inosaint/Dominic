@@ -7,6 +7,7 @@ export interface SelectionInfo {
   width: number;
   height: number;
   childCount: number;
+  thumbnail?: string;
 }
 
 export interface ReviewItem {

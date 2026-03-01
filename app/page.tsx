@@ -692,6 +692,7 @@ export default function Home() {
         onDismissItem={handleDismissItem}
         onClearAll={handleClearAllNotes}
         nodeMap={nodeMap}
+        isLoading={isLoading}
       />
 
       {/* Quick prompts / Chat mode indicator */}
@@ -738,7 +739,7 @@ export default function Home() {
                 : 'Ask about this frame...'
             }
             disabled={isLoading || !selection}
-            className="flex-1 bg-figma-surface border border-figma-border rounded-lg px-3 py-1.5
+            className="flex-1 bg-figma-surface border border-figma-border rounded-full px-3 py-1.5
                        text-12 text-figma-text placeholder:text-figma-text-tertiary
                        focus:outline-none focus:border-figma-accent
                        disabled:opacity-40 disabled:cursor-not-allowed"
@@ -746,7 +747,7 @@ export default function Home() {
           <button
             type="submit"
             disabled={isLoading || !selection || !inputValue.trim()}
-            className="shrink-0 w-7 h-7 flex items-center justify-center rounded-lg
+            className="shrink-0 w-7 h-7 flex items-center justify-center rounded-full
                        bg-figma-accent text-white text-13
                        hover:bg-figma-accent-hover
                        disabled:opacity-40 disabled:cursor-not-allowed
