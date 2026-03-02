@@ -117,7 +117,6 @@ export default function Home() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [highlightedMarker, setHighlightedMarker] = useState<number | null>(null);
 
@@ -396,7 +395,7 @@ export default function Home() {
     async (prompt: string, agentId?: string) => {
       if (!selection) return;
       if (!settings.apiKey) {
-        setShowSettings(true);
+        setActiveTab('settings');
         setMessages((prev) => [
           ...prev,
           {
@@ -483,7 +482,7 @@ export default function Home() {
     async (prompt: string) => {
       if (!selection) return;
       if (!settings.apiKey) {
-        setShowSettings(true);
+        setActiveTab('settings');
         setMessages((prev) => [
           ...prev,
           {
@@ -594,7 +593,7 @@ export default function Home() {
     async (agentId: string) => {
       if (!selection) return;
       if (!settings.apiKey) {
-        setShowSettings(true);
+        setActiveTab('settings');
         return;
       }
 
@@ -783,7 +782,6 @@ export default function Home() {
 
   const handleClearAnnotations = () => {
     sendToPlugin({ type: 'CLEAR_ANNOTATIONS' });
-    setShowSettings(false);
   };
 
   const handleScanDesignSystem = useCallback(() => {
@@ -798,20 +796,19 @@ export default function Home() {
 
   return (
     <div className="relative flex flex-col h-full w-full bg-figma-bg">
-      {/* Selection info + settings gear */}
-      <div className="shrink-0">
-        <SelectionInfo
-          selection={selection}
-          onOpenSettings={() => setShowSettings(!showSettings)}
-        />
-      </div>
-
-      {/* Tab bar */}
+      {/* Tab bar (top) */}
       <TabBar
         activeTab={activeTab}
         onTabChange={setActiveTab}
         hasCache={!!dsCache}
       />
+
+      {/* Selection info (below tabs, visible on all tabs except settings) */}
+      {activeTab !== 'settings' && (
+        <div className="shrink-0">
+          <SelectionInfo selection={selection} />
+        </div>
+      )}
 
       {/* Dismissable onboarding banner */}
       {activeTab === 'chat' && !dsCache && !bannerDismissed && (
@@ -951,13 +948,12 @@ export default function Home() {
         />
       )}
 
-      {/* Settings overlay */}
-      {showSettings && (
+      {activeTab === 'settings' && (
         <SettingsPanel
           settings={settings}
           onChange={handleSettingsChange}
           onClearAnnotations={handleClearAnnotations}
-          onClose={() => setShowSettings(false)}
+          onClose={() => setActiveTab('chat')}
           dsCache={dsCache}
           dsScanLoading={dsScanLoading}
           onScanDesignSystem={handleScanDesignSystem}
