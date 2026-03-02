@@ -119,10 +119,39 @@ export default function ChatWindow({
   const handleCopy = useCallback(() => {
     const text = formatReviewForLLM(messages);
     if (!text) return;
-    navigator.clipboard.writeText(text).then(() => {
+
+    // Clipboard API is often blocked inside Figma plugin iframes,
+    // so fall back to execCommand('copy') via a temporary textarea.
+    function fallbackCopy(str: string): boolean {
+      const textarea = document.createElement('textarea');
+      textarea.value = str;
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.select();
+      let ok = false;
+      try {
+        ok = document.execCommand('copy');
+      } catch {
+        ok = false;
+      }
+      document.body.removeChild(textarea);
+      return ok;
+    }
+
+    const onSuccess = () => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-    });
+    };
+
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(text).then(onSuccess, () => {
+        // Clipboard API rejected — use fallback
+        if (fallbackCopy(text)) onSuccess();
+      });
+    } else {
+      if (fallbackCopy(text)) onSuccess();
+    }
   }, [messages]);
 
   // Check if any message has review items (for showing clear all)
@@ -202,9 +231,11 @@ export default function ChatWindow({
         <div className="flex items-center justify-between pt-1 pb-2">
           <button
             onClick={handleCopy}
-            className="text-11 px-3 py-1 rounded-full border border-figma-border
-                       text-figma-text-secondary hover:text-figma-accent hover:border-figma-accent
-                       transition-colors"
+            className={`text-11 px-3 py-1 rounded-full border transition-colors
+              ${copied
+                ? 'border-figma-success text-figma-success'
+                : 'border-figma-border text-figma-text-secondary hover:text-figma-accent hover:border-figma-accent'
+              }`}
           >
             {copied ? 'Copied!' : 'Copy feedback'}
           </button>
