@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { DesignSystemCacheData } from '../lib/types';
 
 interface Props {
@@ -21,6 +21,7 @@ function ColorSwatch({ hex }: { hex: string }) {
 
 export default function TokensPanel({ dsCache, dsScanLoading, onScan, onImport }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [exported, setExported] = useState(false);
   const cache = dsCache?.cache;
 
   const handleExport = () => {
@@ -32,6 +33,8 @@ export default function TokensPanel({ dsCache, dsScanLoading, onScan, onImport }
     a.download = `design-system-${cache?.pageName || 'tokens'}.json`;
     a.click();
     URL.revokeObjectURL(url);
+    setExported(true);
+    setTimeout(() => setExported(false), 2000);
   };
 
   const handleImportClick = () => {
@@ -123,12 +126,14 @@ export default function TokensPanel({ dsCache, dsScanLoading, onScan, onImport }
         <div className="flex gap-1">
           <button
             onClick={handleExport}
-            className="text-11 px-2 py-0.5 rounded-full border border-figma-border
-                       text-figma-text-secondary hover:text-figma-text hover:border-figma-text-secondary
-                       transition-colors"
+            className={`text-11 px-2 py-0.5 rounded-full border transition-colors
+              ${exported
+                ? 'border-figma-success text-figma-success'
+                : 'border-figma-border text-figma-text-secondary hover:text-figma-text hover:border-figma-text-secondary'
+              }`}
             title="Export tokens as JSON"
           >
-            Export
+            {exported ? 'Exported!' : 'Export'}
           </button>
           <button
             onClick={handleImportClick}
