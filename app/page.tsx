@@ -351,6 +351,7 @@ export default function Home() {
       // Inject cached design system context (compact token summary)
       if (settings.designSystemCache && dsCache?.promptContext) {
         systemPrompt += `\n\n${dsCache.promptContext}`;
+        console.log('[Dominic] Design system context injected into system prompt (%d chars)', dsCache.promptContext.length);
       }
 
       let rawResponse: string;

@@ -259,15 +259,18 @@ export function cacheToPromptContext(cache: DesignSystemCache): string {
   lines.push(`DESIGN SYSTEM CONTEXT (scanned from "${cache.pageName}", ${cache.nodeCount} nodes):`);
   lines.push('');
 
-  // Colors
+  // Colors — token name first (hex in brackets), no usage counts
   const fillEntries = Object.entries(cache.colors.fills).sort(
     (a, b) => b[1].count - a[1].count
   );
   if (fillEntries.length > 0) {
-    lines.push('FILL COLORS (hex → usage count, token name if bound):');
+    lines.push('FILL COLORS:');
     for (const [hex, entry] of fillEntries) {
-      const tokenPart = entry.token ? ` [token: ${entry.token}]` : '';
-      lines.push(`  ${hex} ×${entry.count}${tokenPart}`);
+      if (entry.token) {
+        lines.push(`  ${entry.token} (${hex})`);
+      } else {
+        lines.push(`  ${hex}`);
+      }
     }
     lines.push('');
   }
@@ -278,8 +281,11 @@ export function cacheToPromptContext(cache: DesignSystemCache): string {
   if (strokeEntries.length > 0) {
     lines.push('STROKE COLORS:');
     for (const [hex, entry] of strokeEntries) {
-      const tokenPart = entry.token ? ` [token: ${entry.token}]` : '';
-      lines.push(`  ${hex} ×${entry.count}${tokenPart}`);
+      if (entry.token) {
+        lines.push(`  ${entry.token} (${hex})`);
+      } else {
+        lines.push(`  ${hex}`);
+      }
     }
     lines.push('');
   }

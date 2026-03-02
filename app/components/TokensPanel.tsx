@@ -22,6 +22,8 @@ function ColorSwatch({ hex }: { hex: string }) {
 export default function TokensPanel({ dsCache, dsScanLoading, onScan, onImport }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [exported, setExported] = useState(false);
+  const [showPromptPreview, setShowPromptPreview] = useState(false);
+  const [promptCopied, setPromptCopied] = useState(false);
   const cache = dsCache?.cache;
 
   const handleExport = () => {
@@ -174,13 +176,14 @@ export default function TokensPanel({ dsCache, dsScanLoading, onScan, onImport }
               {fillEntries.map(([hex, entry]) => (
                 <div key={hex} className="flex items-center gap-2 text-11">
                   <ColorSwatch hex={hex} />
-                  <span className="text-figma-text font-mono">{hex}</span>
-                  {entry.token && (
-                    <span className="text-figma-accent truncate">{entry.token}</span>
+                  {entry.token ? (
+                    <>
+                      <span className="text-figma-text truncate">{entry.token}</span>
+                      <span className="text-figma-text-tertiary font-mono">({hex})</span>
+                    </>
+                  ) : (
+                    <span className="text-figma-text font-mono">{hex}</span>
                   )}
-                  <span className="ml-auto text-figma-text-tertiary shrink-0">
-                    &times;{entry.count}
-                  </span>
                 </div>
               ))}
             </div>
@@ -197,13 +200,14 @@ export default function TokensPanel({ dsCache, dsScanLoading, onScan, onImport }
               {strokeEntries.map(([hex, entry]) => (
                 <div key={hex} className="flex items-center gap-2 text-11">
                   <ColorSwatch hex={hex} />
-                  <span className="text-figma-text font-mono">{hex}</span>
-                  {entry.token && (
-                    <span className="text-figma-accent truncate">{entry.token}</span>
+                  {entry.token ? (
+                    <>
+                      <span className="text-figma-text truncate">{entry.token}</span>
+                      <span className="text-figma-text-tertiary font-mono">({hex})</span>
+                    </>
+                  ) : (
+                    <span className="text-figma-text font-mono">{hex}</span>
                   )}
-                  <span className="ml-auto text-figma-text-tertiary shrink-0">
-                    &times;{entry.count}
-                  </span>
                 </div>
               ))}
             </div>
@@ -284,6 +288,52 @@ export default function TokensPanel({ dsCache, dsScanLoading, onScan, onImport }
                 </div>
               ))}
             </div>
+          </section>
+        )}
+
+        {/* LLM prompt context preview */}
+        {dsCache?.promptContext && (
+          <section>
+            <button
+              onClick={() => setShowPromptPreview(!showPromptPreview)}
+              className="flex items-center gap-1 text-11 font-semibold text-figma-text-secondary mb-1"
+            >
+              <span className={`inline-block transition-transform ${showPromptPreview ? 'rotate-90' : ''}`}>
+                &#9656;
+              </span>
+              Preview LLM context
+            </button>
+            {showPromptPreview && (
+              <div className="relative">
+                <pre className="text-10 text-figma-text-secondary bg-figma-surface border border-figma-border rounded-lg p-2 overflow-x-auto whitespace-pre-wrap break-words max-h-60 overflow-y-auto">
+                  {dsCache.promptContext}
+                </pre>
+                <button
+                  onClick={() => {
+                    const textarea = document.createElement('textarea');
+                    textarea.value = dsCache.promptContext;
+                    textarea.style.position = 'fixed';
+                    textarea.style.opacity = '0';
+                    document.body.appendChild(textarea);
+                    textarea.select();
+                    try { document.execCommand('copy'); } catch { /* ignore */ }
+                    document.body.removeChild(textarea);
+                    setPromptCopied(true);
+                    setTimeout(() => setPromptCopied(false), 2000);
+                  }}
+                  className={`absolute top-1.5 right-1.5 text-11 px-2 py-0.5 rounded-full border transition-colors
+                    ${promptCopied
+                      ? 'border-figma-success text-figma-success bg-figma-bg'
+                      : 'border-figma-border text-figma-text-tertiary hover:text-figma-text-secondary bg-figma-bg'
+                    }`}
+                >
+                  {promptCopied ? 'Copied!' : 'Copy'}
+                </button>
+                <p className="text-10 text-figma-text-tertiary mt-1">
+                  This exact text is appended to every agent&apos;s system prompt when design system context is enabled.
+                </p>
+              </div>
+            )}
           </section>
         )}
 

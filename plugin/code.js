@@ -807,10 +807,13 @@ ${item.feedback}`;
       (a, b) => b[1].count - a[1].count
     );
     if (fillEntries.length > 0) {
-      lines.push("FILL COLORS (hex \u2192 usage count, token name if bound):");
+      lines.push("FILL COLORS:");
       for (const [hex, entry] of fillEntries) {
-        const tokenPart = entry.token ? ` [token: ${entry.token}]` : "";
-        lines.push(`  ${hex} \xD7${entry.count}${tokenPart}`);
+        if (entry.token) {
+          lines.push(`  ${entry.token} (${hex})`);
+        } else {
+          lines.push(`  ${hex}`);
+        }
       }
       lines.push("");
     }
@@ -820,8 +823,11 @@ ${item.feedback}`;
     if (strokeEntries.length > 0) {
       lines.push("STROKE COLORS:");
       for (const [hex, entry] of strokeEntries) {
-        const tokenPart = entry.token ? ` [token: ${entry.token}]` : "";
-        lines.push(`  ${hex} \xD7${entry.count}${tokenPart}`);
+        if (entry.token) {
+          lines.push(`  ${entry.token} (${hex})`);
+        } else {
+          lines.push(`  ${hex}`);
+        }
       }
       lines.push("");
     }
