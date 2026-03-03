@@ -752,8 +752,6 @@ export default function Home() {
   // --- Handlers ---
   const handleQuickPrompt = useCallback(
     (prompt: string, agentId?: string, allAgents?: boolean) => {
-      // Switch to chat tab so user sees the conversation
-      setActiveTab('chat');
       if (allAgents) {
         runAllAgents(prompt);
       } else {

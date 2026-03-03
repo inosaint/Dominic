@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect, useRef } from 'react';
 import Mascot from './Mascot';
 import { SelectionInfo, ObserverHints, ObserverFix, CustomAgentConfig } from '../lib/types';
 import { QUICK_PROMPTS } from '../lib/prompts';
@@ -22,14 +23,29 @@ const FIX_ICONS: Record<string, string> = {
   radius: '\u25E0',
 };
 
+const THINKING_LINES = [
+  'Hmm, let me take a closer look...',
+  'Reviewing your design...',
+  'Checking against your design system...',
+  'Almost there...',
+];
+
+type Mood = 'idle' | 'watching' | 'clean' | 'alert' | 'thinking' | 'done';
+
 function getSpeechContent(
   selection: SelectionInfo | null,
   observerEnabled: boolean,
   observerHints: ObserverHints | null,
-  isLoading: boolean
-): { text: string; mood: 'idle' | 'watching' | 'clean' | 'alert' | 'thinking' } {
+  isLoading: boolean,
+  thinkingLine: string,
+  justFinished: boolean,
+): { text: string; mood: Mood } {
   if (isLoading) {
-    return { text: 'Hmm, let me take a closer look...', mood: 'thinking' };
+    return { text: thinkingLine, mood: 'thinking' };
+  }
+
+  if (justFinished) {
+    return { text: 'Done! I\'ve annotated the frame with my feedback.', mood: 'done' };
   }
 
   if (!selection) {
@@ -67,7 +83,37 @@ export default function MascotTab({
   onFix,
   customAgents,
 }: Props) {
-  const { text, mood } = getSpeechContent(selection, observerEnabled, observerHints, isLoading);
+  // Cycle through thinking lines while loading
+  const [thinkingIdx, setThinkingIdx] = useState(0);
+  const wasLoading = useRef(false);
+  const [justFinished, setJustFinished] = useState(false);
+  const finishedTimer = useRef<ReturnType<typeof setTimeout>>();
+
+  useEffect(() => {
+    if (!isLoading) {
+      setThinkingIdx(0);
+      return;
+    }
+    const interval = setInterval(() => {
+      setThinkingIdx((i) => (i + 1) % THINKING_LINES.length);
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [isLoading]);
+
+  // Detect loading → done transition
+  useEffect(() => {
+    if (wasLoading.current && !isLoading) {
+      setJustFinished(true);
+      finishedTimer.current = setTimeout(() => setJustFinished(false), 4000);
+    }
+    wasLoading.current = isLoading;
+    return () => { if (finishedTimer.current) clearTimeout(finishedTimer.current); };
+  }, [isLoading]);
+
+  const { text, mood } = getSpeechContent(
+    selection, observerEnabled, observerHints, isLoading,
+    THINKING_LINES[thinkingIdx], justFinished,
+  );
   const fixes = observerHints?.fixes ?? [];
   const hasFixes = fixes.length > 0;
 
@@ -76,7 +122,15 @@ export default function MascotTab({
       {/* Mascot + speech bubble area */}
       <div className="flex-1 flex flex-col items-center justify-center px-4 py-4 gap-3">
         {/* Mascot */}
-        <div className={`transition-transform ${mood === 'thinking' ? 'animate-pulse' : ''}`}>
+        <div
+          className={`transition-all duration-500 ${
+            mood === 'thinking'
+              ? 'animate-pulse scale-105'
+              : mood === 'done'
+                ? 'scale-110'
+                : ''
+          }`}
+        >
           <Mascot size={88} />
         </div>
 
@@ -87,11 +141,33 @@ export default function MascotTab({
             className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-3 h-3 rotate-45 bg-figma-surface border-l border-t border-figma-border"
           />
           {/* Bubble body */}
-          <div className="relative bg-figma-surface border border-figma-border rounded-xl px-3 py-2.5">
-            <p className="text-12 text-figma-text leading-relaxed">{text}</p>
+          <div className={`relative bg-figma-surface border rounded-xl px-3 py-2.5 transition-colors duration-300
+            ${mood === 'done'
+              ? 'border-green-400/50'
+              : mood === 'thinking'
+                ? 'border-figma-accent/40'
+                : 'border-figma-border'
+            }`}
+          >
+            <p className={`text-12 leading-relaxed transition-colors duration-300
+              ${mood === 'done' ? 'text-green-500' : mood === 'thinking' ? 'text-figma-accent' : 'text-figma-text'}
+            `}>{text}</p>
+
+            {/* Loading dots animation */}
+            {mood === 'thinking' && (
+              <div className="flex gap-1 mt-1.5">
+                {[0, 1, 2].map((i) => (
+                  <span
+                    key={i}
+                    className="w-1 h-1 rounded-full bg-figma-accent animate-bounce"
+                    style={{ animationDelay: `${i * 150}ms` }}
+                  />
+                ))}
+              </div>
+            )}
 
             {/* Individual fixable items */}
-            {observerEnabled && hasFixes && (
+            {observerEnabled && hasFixes && mood !== 'thinking' && mood !== 'done' && (
               <div className="mt-2 space-y-1.5">
                 {fixes.map((fix) => (
                   <div key={fix.id} className="flex items-center gap-1.5 text-11">
@@ -125,7 +201,7 @@ export default function MascotTab({
             )}
 
             {/* Fallback: summary hints when no fixes available */}
-            {observerEnabled && !hasFixes && observerHints && observerHints.hints.length > 0 && (
+            {observerEnabled && !hasFixes && observerHints && observerHints.hints.length > 0 && mood !== 'thinking' && mood !== 'done' && (
               <div className="mt-2 space-y-1">
                 {observerHints.hints.map((hint, i) => (
                   <div key={i} className="flex items-start gap-1.5 text-11">
