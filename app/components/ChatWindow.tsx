@@ -3,6 +3,7 @@
 import { useRef, useEffect, useMemo, useState, useCallback } from 'react';
 import { ChatMessage, ReviewItem } from '../lib/types';
 import ReviewSummary from './ReviewSummary';
+import Mascot from './Mascot';
 
 interface Props {
   messages: ChatMessage[];
@@ -159,7 +160,8 @@ export default function ChatWindow({
 
   if (messages.length === 0) {
     return (
-      <div className="flex-1 flex items-center justify-center p-4">
+      <div className="flex-1 flex flex-col items-center justify-center p-4 gap-3">
+        <Mascot size={72} />
         <p className="text-12 text-figma-text-tertiary text-center">
           Select a frame and ask a question, or use a quick prompt to start reviewing.
         </p>
