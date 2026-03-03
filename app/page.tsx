@@ -8,6 +8,9 @@ import {
   ReviewItem,
   ConversationTurn,
   CustomAgentConfig,
+  DesignSystemCacheData,
+  ObserverHints,
+  ObserverFix,
 } from './lib/types';
 import { sendToPlugin, onPluginMessage } from './lib/figmaAPI';
 import { getAgent, getAllAgents, BUILT_IN_AGENTS, CustomAgent, ReviewAgent } from './lib/agents';
@@ -18,6 +21,11 @@ import SelectionInfo from './components/SelectionInfo';
 import ChatWindow from './components/ChatWindow';
 import QuickPrompts from './components/QuickPrompts';
 import SettingsPanel from './components/SettingsPanel';
+import TabBar, { TabId } from './components/TabBar';
+import TokensPanel from './components/TokensPanel';
+import ComponentsPanel from './components/ComponentsPanel';
+import ObserverBar from './components/ObserverBar';
+import MascotTab from './components/MascotTab';
 
 const CHAT_MODE_ADDENDUM = `
 
@@ -113,9 +121,20 @@ export default function Home() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [highlightedMarker, setHighlightedMarker] = useState<number | null>(null);
+
+  // Tab navigation
+  const [activeTab, setActiveTab] = useState<TabId>('mascot');
+  const [bannerDismissed, setBannerDismissed] = useState(false);
+
+  // Design system cache state
+  const [dsCache, setDsCache] = useState<DesignSystemCacheData | null>(null);
+  const [dsScanLoading, setDsScanLoading] = useState(false);
+
+  // Observer state
+  const [observerEnabled, setObserverEnabled] = useState(false);
+  const [observerHints, setObserverHints] = useState<ObserverHints | null>(null);
 
   // Chat mode state
   const [activeAgent, setActiveAgent] = useState<ReviewAgent | null>(null);
@@ -245,11 +264,33 @@ export default function Home() {
           },
         ]);
       }),
+      onPluginMessage('DESIGN_SYSTEM_SCANNED', (msg) => {
+        setDsCache(msg.payload);
+        setDsScanLoading(false);
+        // Auto-enable design system context when a scan completes
+        setSettings((prev) => {
+          if (!prev.designSystemCache) {
+            const updated = { ...prev, designSystemCache: true };
+            sendToPlugin({ type: 'STORE_SETTINGS', payload: updated });
+            return updated;
+          }
+          return prev;
+        });
+      }),
+      onPluginMessage('DESIGN_SYSTEM_CACHE_LOADED', (msg) => {
+        if (msg.payload) {
+          setDsCache(msg.payload);
+        }
+      }),
+      onPluginMessage('OBSERVER_HINTS', (msg) => {
+        setObserverHints(msg.payload);
+      }),
     ];
 
     // Request initial data
     sendToPlugin({ type: 'GET_SELECTION' });
     sendToPlugin({ type: 'GET_SETTINGS' });
+    sendToPlugin({ type: 'GET_DESIGN_SYSTEM_CACHE' });
 
     return () => {
       cleanups.forEach((fn) => fn());
@@ -318,6 +359,12 @@ export default function Home() {
         systemPrompt += CHAT_MODE_ADDENDUM;
       }
 
+      // Inject cached design system context (compact token summary)
+      if (settings.designSystemCache && dsCache?.promptContext) {
+        systemPrompt += `\n\n${dsCache.promptContext}`;
+        console.log('[Dominic] Design system context injected into system prompt (%d chars)', dsCache.promptContext.length);
+      }
+
       let rawResponse: string;
       const selectedModel = normalizeModelForProvider(
         settings.provider,
@@ -352,7 +399,7 @@ export default function Home() {
 
       return parseReviewResponse(rawResponse);
     },
-    [settings.provider, settings.apiKey, settings.model]
+    [settings.provider, settings.apiKey, settings.model, settings.designSystemCache, dsCache]
   );
 
   // --- Run a single-agent review (one-shot) ---
@@ -360,7 +407,7 @@ export default function Home() {
     async (prompt: string, agentId?: string) => {
       if (!selection) return;
       if (!settings.apiKey) {
-        setShowSettings(true);
+        setActiveTab('settings');
         setMessages((prev) => [
           ...prev,
           {
@@ -447,7 +494,7 @@ export default function Home() {
     async (prompt: string) => {
       if (!selection) return;
       if (!settings.apiKey) {
-        setShowSettings(true);
+        setActiveTab('settings');
         setMessages((prev) => [
           ...prev,
           {
@@ -558,7 +605,7 @@ export default function Home() {
     async (agentId: string) => {
       if (!selection) return;
       if (!settings.apiKey) {
-        setShowSettings(true);
+        setActiveTab('settings');
         return;
       }
 
@@ -747,123 +794,219 @@ export default function Home() {
 
   const handleClearAnnotations = () => {
     sendToPlugin({ type: 'CLEAR_ANNOTATIONS' });
-    setShowSettings(false);
   };
+
+  const handleScanDesignSystem = useCallback(() => {
+    setDsScanLoading(true);
+    sendToPlugin({ type: 'SCAN_DESIGN_SYSTEM' });
+  }, []);
+
+  const handleImportDesignSystem = useCallback((data: DesignSystemCacheData) => {
+    setDsCache(data);
+    sendToPlugin({ type: 'IMPORT_DESIGN_SYSTEM_CACHE', payload: { cache: data.cache } });
+  }, []);
+
+  const handleObserverToggle = useCallback((enabled: boolean) => {
+    setObserverEnabled(enabled);
+    setObserverHints(null);
+    sendToPlugin({ type: 'SET_OBSERVER', payload: { enabled } });
+  }, []);
+
+  const handleObserverFix = useCallback((fixes: ObserverFix[]) => {
+    sendToPlugin({ type: 'FIX_OBSERVER_HINT', payload: { fixes } });
+  }, []);
+
+  const handleObserverClear = useCallback(() => {
+    setObserverHints(null);
+  }, []);
 
   return (
     <div className="relative flex flex-col h-full w-full bg-figma-bg">
-      {/* Selection info + settings gear */}
-      <div className="shrink-0">
-        <SelectionInfo
-          selection={selection}
-          onOpenSettings={() => setShowSettings(!showSettings)}
-        />
-      </div>
-
-      {/* Chat area */}
-      <ChatWindow
-        messages={messages}
-        highlightedMarker={highlightedMarker}
-        onFocusNode={handleFocusNode}
-        onDismissItem={handleDismissItem}
-        onClearAll={handleClearAllNotes}
-        nodeMap={nodeMap}
-        isLoading={isLoading}
+      {/* Tab bar (top) */}
+      <TabBar
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        hasCache={!!dsCache}
       />
 
-      {/* Quick prompts / Chat mode indicator */}
-      <div className="shrink-0">
-        {activeAgent ? (
-          <div className="px-3 py-2 border-b border-figma-border flex items-center justify-between">
-            <span className="text-12 text-figma-text">
-              {activeAgent.emoji} Chatting with <span className="font-semibold">{activeAgent.name}</span>
-              <span className="text-figma-text-tertiary ml-1">— {activeAgent.subtitle}</span>
-            </span>
-            <button
-              onClick={endChat}
-              className="text-11 px-2 py-0.5 rounded-full border border-figma-border
-                         text-figma-text-secondary hover:text-figma-text hover:border-figma-text-secondary
-                         transition-colors"
-            >
-              End
-            </button>
-          </div>
-        ) : (
-          <QuickPrompts
-            onSelect={handleQuickPrompt}
-            onStartChat={startChat}
-            disabled={isLoading || !selection}
-            customAgents={settings.customAgents}
-            enableAgentChat={settings.enableAgentChat}
-          />
-        )}
-      </div>
+      {/* Selection info (below tabs, visible on chat/tokens/components) */}
+      {activeTab !== 'settings' && activeTab !== 'mascot' && (
+        <div className="shrink-0">
+          <SelectionInfo selection={selection} />
+        </div>
+      )}
 
-      {/* Input area */}
-      <form
-        onSubmit={handleSubmit}
-        className="shrink-0 px-3 py-2 border-t border-figma-border"
-      >
-        <div className="flex gap-2 items-center">
-          <input
-            type="text"
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            placeholder={
-              activeAgent
-                ? `Ask ${activeAgent.name}...`
-                : 'Ask about this frame...'
-            }
-            disabled={isLoading || !selection}
-            className="flex-1 bg-figma-surface border border-figma-border rounded-full px-3 py-1.5
-                       text-12 text-figma-text placeholder:text-figma-text-tertiary
-                       focus:outline-none focus:border-figma-accent
-                       disabled:opacity-40 disabled:cursor-not-allowed"
-          />
+      {/* Observer bar (below selection, visible on chat tab when DS cache exists) */}
+      {activeTab === 'chat' && (
+        <ObserverBar
+          observerEnabled={observerEnabled}
+          onToggle={handleObserverToggle}
+          hints={observerHints}
+          hasCache={!!dsCache}
+        />
+      )}
+
+      {/* Dismissable onboarding banner */}
+      {activeTab === 'chat' && !dsCache && !bannerDismissed && (
+        <div className="shrink-0 mx-3 mt-2 px-3 py-2 bg-figma-surface border border-figma-border rounded-lg flex items-start gap-2">
+          <span className="text-12 leading-relaxed text-figma-text-secondary flex-1">
+            Want better feedback? <button
+              onClick={() => { setActiveTab('tokens'); handleScanDesignSystem(); }}
+              className="text-figma-accent hover:underline"
+            >Scan your design system</button> so agents can reference your actual tokens.
+          </span>
           <button
-            type="submit"
-            disabled={isLoading || !selection || !inputValue.trim()}
-            className="shrink-0 w-7 h-7 flex items-center justify-center rounded-full
-                       bg-figma-accent text-white text-13
-                       hover:bg-figma-accent-hover
-                       disabled:opacity-40 disabled:cursor-not-allowed
-                       transition-colors"
-            title="Send"
+            onClick={() => setBannerDismissed(true)}
+            className="text-figma-text-tertiary hover:text-figma-text text-13 shrink-0 leading-none mt-0.5"
           >
-            {isLoading ? (
-              <span className="animate-spin text-11">&#9696;</span>
-            ) : (
-              '\u25B6'
-            )}
+            &times;
           </button>
         </div>
-        {!activeAgent && (
-          <label className="flex items-center gap-1.5 mt-1.5 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={settings.includeScreenshot}
-              onChange={(e) =>
-                handleSettingsChange({
-                  ...settings,
-                  includeScreenshot: e.target.checked,
-                })
-              }
-              className="circle-check"
-            />
-            <span className="text-11 text-figma-text-secondary">
-              Include screenshot
-            </span>
-          </label>
-        )}
-      </form>
+      )}
 
-      {/* Settings overlay */}
-      {showSettings && (
+      {/* Tab content */}
+      {activeTab === 'chat' && (
+        <>
+          {/* Chat area */}
+          <ChatWindow
+            messages={messages}
+            highlightedMarker={highlightedMarker}
+            onFocusNode={handleFocusNode}
+            onDismissItem={handleDismissItem}
+            onClearAll={handleClearAllNotes}
+            nodeMap={nodeMap}
+            isLoading={isLoading}
+          />
+
+          {/* Quick prompts / Chat mode indicator */}
+          <div className="shrink-0">
+            {activeAgent ? (
+              <div className="px-3 py-2 border-b border-figma-border flex items-center justify-between">
+                <span className="text-12 text-figma-text">
+                  {activeAgent.emoji} Chatting with <span className="font-semibold">{activeAgent.name}</span>
+                  <span className="text-figma-text-tertiary ml-1">— {activeAgent.subtitle}</span>
+                </span>
+                <button
+                  onClick={endChat}
+                  className="text-11 px-2 py-0.5 rounded-full border border-figma-border
+                             text-figma-text-secondary hover:text-figma-text hover:border-figma-text-secondary
+                             transition-colors"
+                >
+                  End
+                </button>
+              </div>
+            ) : (
+              <QuickPrompts
+                onSelect={handleQuickPrompt}
+                onStartChat={startChat}
+                disabled={isLoading || !selection}
+                customAgents={settings.customAgents}
+                enableAgentChat={settings.enableAgentChat}
+              />
+            )}
+          </div>
+
+          {/* Input area */}
+          <form
+            onSubmit={handleSubmit}
+            className="shrink-0 px-3 py-2 border-t border-figma-border"
+          >
+            <div className="flex gap-2 items-center">
+              <input
+                type="text"
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
+                placeholder={
+                  activeAgent
+                    ? `Ask ${activeAgent.name}...`
+                    : 'Ask about this frame...'
+                }
+                disabled={isLoading || !selection}
+                className="flex-1 bg-figma-surface border border-figma-border rounded-full px-3 py-1.5
+                           text-12 text-figma-text placeholder:text-figma-text-tertiary
+                           focus:outline-none focus:border-figma-accent
+                           disabled:opacity-40 disabled:cursor-not-allowed"
+              />
+              <button
+                type="submit"
+                disabled={isLoading || !selection || !inputValue.trim()}
+                className="shrink-0 w-7 h-7 flex items-center justify-center rounded-full
+                           bg-figma-accent text-white text-13
+                           hover:bg-figma-accent-hover
+                           disabled:opacity-40 disabled:cursor-not-allowed
+                           transition-colors"
+                title="Send"
+              >
+                {isLoading ? (
+                  <span className="animate-spin text-11">&#9696;</span>
+                ) : (
+                  '\u25B6'
+                )}
+              </button>
+            </div>
+            {!activeAgent && (
+              <label className="flex items-center gap-1.5 mt-1.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={settings.includeScreenshot}
+                  onChange={(e) =>
+                    handleSettingsChange({
+                      ...settings,
+                      includeScreenshot: e.target.checked,
+                    })
+                  }
+                  className="circle-check"
+                />
+                <span className="text-11 text-figma-text-secondary">
+                  Include screenshot
+                </span>
+              </label>
+            )}
+          </form>
+        </>
+      )}
+
+      {activeTab === 'mascot' && (
+        <MascotTab
+          selection={selection}
+          observerHints={observerHints}
+          observerEnabled={observerEnabled}
+          isLoading={isLoading}
+          onQuickPrompt={handleQuickPrompt}
+          onToggleObserver={handleObserverToggle}
+          onFix={handleObserverFix}
+          onClear={handleObserverClear}
+          customAgents={settings.customAgents}
+        />
+      )}
+
+      {activeTab === 'tokens' && (
+        <TokensPanel
+          dsCache={dsCache}
+          dsScanLoading={dsScanLoading}
+          onScan={handleScanDesignSystem}
+          onImport={handleImportDesignSystem}
+        />
+      )}
+
+      {activeTab === 'components' && (
+        <ComponentsPanel
+          dsCache={dsCache}
+          dsScanLoading={dsScanLoading}
+          onScan={handleScanDesignSystem}
+          onImport={handleImportDesignSystem}
+        />
+      )}
+
+      {activeTab === 'settings' && (
         <SettingsPanel
           settings={settings}
           onChange={handleSettingsChange}
           onClearAnnotations={handleClearAnnotations}
-          onClose={() => setShowSettings(false)}
+          onClose={() => setActiveTab('chat')}
+          dsCache={dsCache}
+          dsScanLoading={dsScanLoading}
+          onScanDesignSystem={handleScanDesignSystem}
         />
       )}
     </div>

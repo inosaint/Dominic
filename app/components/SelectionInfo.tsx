@@ -4,31 +4,21 @@ import { SelectionInfo as SelectionInfoType } from '../lib/types';
 
 interface Props {
   selection: SelectionInfoType | null;
-  onOpenSettings?: () => void;
 }
 
-export default function SelectionInfo({ selection, onOpenSettings }: Props) {
+export default function SelectionInfo({ selection }: Props) {
   if (!selection) {
     return (
-      <div className="px-3 py-3 border-b border-figma-border flex items-center justify-between">
+      <div className="px-3 py-2.5 border-b border-figma-border">
         <p className="text-12 text-figma-text-tertiary">
           Select a frame to start reviewing
         </p>
-        {onOpenSettings && (
-          <button
-            onClick={onOpenSettings}
-            className="text-figma-text-secondary hover:text-figma-text text-[16px] leading-none p-0.5 shrink-0"
-            title="Settings"
-          >
-            &#9881;
-          </button>
-        )}
       </div>
     );
   }
 
   return (
-    <div className="px-3 py-3 border-b border-figma-border flex items-center gap-3">
+    <div className="px-3 py-2.5 border-b border-figma-border flex items-center gap-3">
       {selection.thumbnail && (
         <img
           src={selection.thumbnail}
@@ -45,15 +35,6 @@ export default function SelectionInfo({ selection, onOpenSettings }: Props) {
           {selection.width}&times;{selection.height}px
         </p>
       </div>
-      {onOpenSettings && (
-        <button
-          onClick={onOpenSettings}
-          className="text-figma-text-secondary hover:text-figma-text text-[16px] leading-none p-0.5 shrink-0"
-          title="Settings"
-        >
-          &#9881;
-        </button>
-      )}
     </div>
   );
 }

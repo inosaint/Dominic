@@ -47,6 +47,37 @@ export interface Settings {
   outputMode: OutputMode;
   customAgents?: CustomAgentConfig[];
   enableAgentChat?: boolean;
+  designSystemCache?: boolean;
+}
+
+export interface DesignSystemCacheData {
+  cache: DesignSystemCache;
+  promptContext: string;
+}
+
+export interface DesignSystemCache {
+  colors: {
+    fills: Record<string, { count: number; token?: string }>;
+    strokes: Record<string, { count: number; token?: string }>;
+  };
+  typography: Array<{
+    family: string;
+    size: number;
+    weight: number;
+    lineHeight?: number;
+    count: number;
+  }>;
+  spacing: {
+    padding: Record<string, number>;
+    gap: Record<string, number>;
+  };
+  radii: Record<string, number>;
+  effects: Record<string, number>;
+  components: Array<{ name: string; instances: number }>;
+  scannedAt: number;
+  nodeCount: number;
+  pageId: string;
+  pageName: string;
 }
 
 export interface ChatMessage {
@@ -83,4 +114,27 @@ export interface ReviewResponse {
   items: ReviewItem[];
   text?: string;
   error?: string;
+}
+
+export interface ObserverHint {
+  type: 'color' | 'spacing' | 'typography' | 'radius';
+  message: string;
+}
+
+export interface ObserverFix {
+  id: string;
+  type: 'color' | 'spacing' | 'typography' | 'radius';
+  nodeId: string;
+  nodeName: string;
+  property: string;
+  currentValue: string;
+  suggestedValue: string;
+  fixData: object;
+}
+
+export interface ObserverHints {
+  frameName: string;
+  frameId: string;
+  hints: ObserverHint[];
+  fixes?: ObserverFix[];
 }

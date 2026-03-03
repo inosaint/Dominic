@@ -9,6 +9,14 @@ import {
   clearAIAnnotations,
 } from './annotationWriter';
 import { writeStickyNotes, clearStickyNotes, dismissReviewItem } from './stickyNoteWriter';
+import {
+  scanDesignSystem,
+  cacheToPromptContext,
+  loadCachedDesignSystem,
+  saveDesignSystemCache,
+  quickScanFrame,
+  DesignSystemCache,
+} from './designSystemCache';
 
 const STORAGE_KEY = 'pair-designer-settings';
 const DEFAULT_ANTHROPIC_MODEL = 'claude-sonnet-4-6';
@@ -44,10 +52,47 @@ function normalizeSettings(settings: Settings): Settings {
 
 figma.showUI(__html__, { width: 360, height: 640, themeColors: true });
 
+// --- Observer state ---
+let observerEnabled = false;
+let observerTimer: ReturnType<typeof setTimeout> | null = null;
+let observerCache: DesignSystemCache | null = null;
+let lastObservedFrameId: string | null = null;
+
+function runObserverCheck() {
+  if (!observerEnabled || !observerCache) return;
+  const selection = figma.currentPage.selection;
+  if (selection.length !== 1) return;
+
+  const node = selection[0];
+  // Only observe container nodes that have children
+  if (!('children' in node) || !('layoutMode' in node)) return;
+  // Skip if we already observed this frame
+  if (node.id === lastObservedFrameId) return;
+  lastObservedFrameId = node.id;
+
+  const result = quickScanFrame(node, observerCache);
+  figma.ui.postMessage({
+    type: 'OBSERVER_HINTS',
+    payload: {
+      frameName: node.name,
+      frameId: node.id,
+      hints: result.hints,
+      fixes: result.fixes,
+    },
+  });
+}
+
+function scheduleObserverCheck() {
+  if (!observerEnabled) return;
+  if (observerTimer) clearTimeout(observerTimer);
+  observerTimer = setTimeout(runObserverCheck, 1200);
+}
+
 // --- Selection change listener ---
 figma.on('selectionchange', () => {
   sendSelectionData();
   checkForMarkerSelection();
+  scheduleObserverCheck();
 });
 
 function sendSelectionData() {
@@ -275,6 +320,141 @@ figma.ui.onmessage = async (msg: UIToPluginMessage) => {
         if (!stored || normalized.model !== merged.model) {
           await figma.clientStorage.setAsync(STORAGE_KEY, normalized);
         }
+        break;
+      }
+
+      case 'SCAN_DESIGN_SYSTEM': {
+        const cache = scanDesignSystem();
+        await saveDesignSystemCache(cache);
+        const promptContext = cacheToPromptContext(cache);
+        // Keep observer cache in sync
+        if (observerEnabled) {
+          observerCache = cache;
+          lastObservedFrameId = null;
+        }
+        figma.ui.postMessage({
+          type: 'DESIGN_SYSTEM_SCANNED',
+          payload: { cache, promptContext },
+        });
+        break;
+      }
+
+      case 'GET_DESIGN_SYSTEM_CACHE': {
+        const cached = await loadCachedDesignSystem();
+        if (cached) {
+          const promptContext = cacheToPromptContext(cached);
+          figma.ui.postMessage({
+            type: 'DESIGN_SYSTEM_CACHE_LOADED',
+            payload: { cache: cached, promptContext },
+          });
+        } else {
+          figma.ui.postMessage({
+            type: 'DESIGN_SYSTEM_CACHE_LOADED',
+            payload: null,
+          });
+        }
+        break;
+      }
+
+      case 'IMPORT_DESIGN_SYSTEM_CACHE': {
+        const imported = msg.payload.cache;
+        await saveDesignSystemCache(imported as any);
+        const promptCtx = cacheToPromptContext(imported as any);
+        figma.ui.postMessage({
+          type: 'DESIGN_SYSTEM_SCANNED',
+          payload: { cache: imported, promptContext: promptCtx },
+        });
+        break;
+      }
+
+      case 'SET_OBSERVER': {
+        observerEnabled = msg.payload.enabled;
+        if (observerEnabled) {
+          // Load or refresh the cached DS for local comparisons
+          const cached = await loadCachedDesignSystem();
+          observerCache = cached;
+          lastObservedFrameId = null;
+          // Run immediately for the current selection
+          runObserverCheck();
+        } else {
+          if (observerTimer) {
+            clearTimeout(observerTimer);
+            observerTimer = null;
+          }
+          lastObservedFrameId = null;
+        }
+        break;
+      }
+
+      case 'FIX_OBSERVER_HINT': {
+        const { fixes } = msg.payload;
+        let applied = 0;
+        for (const fix of fixes) {
+          try {
+            const target = await figma.getNodeByIdAsync(fix.nodeId);
+            if (!target) continue;
+            const data = fix.fixData as any;
+
+            switch (fix.type) {
+              case 'color': {
+                if ('fills' in target && target.fills !== figma.mixed) {
+                  const fills = [...(target.fills as Paint[])];
+                  const idx = data.fillIndex ?? 0;
+                  if (idx < fills.length && fills[idx].type === 'SOLID') {
+                    const hex = data.hex as string;
+                    const r = parseInt(hex.slice(1, 3), 16) / 255;
+                    const g = parseInt(hex.slice(3, 5), 16) / 255;
+                    const b = parseInt(hex.slice(5, 7), 16) / 255;
+                    fills[idx] = { ...fills[idx], color: { r, g, b } } as SolidPaint;
+                    (target as GeometryMixin).fills = fills;
+                    applied++;
+                  }
+                }
+                break;
+              }
+              case 'spacing': {
+                const prop = data.prop as string;
+                const value = data.value as number;
+                if (prop in target) {
+                  (target as any)[prop] = value;
+                  applied++;
+                }
+                break;
+              }
+              case 'radius': {
+                if ('cornerRadius' in target) {
+                  (target as any).cornerRadius = data.value as number;
+                  applied++;
+                }
+                break;
+              }
+              case 'typography': {
+                if (target.type === 'TEXT') {
+                  const textNode = target as TextNode;
+                  await figma.loadFontAsync(
+                    textNode.fontName === figma.mixed
+                      ? { family: 'Inter', style: 'Regular' }
+                      : textNode.fontName
+                  );
+                  textNode.fontSize = data.size as number;
+                  applied++;
+                }
+                break;
+              }
+            }
+          } catch {
+            // Skip nodes that can't be fixed (e.g. deleted)
+          }
+        }
+
+        // Re-run observer to refresh hints after fixes
+        lastObservedFrameId = null;
+        runObserverCheck();
+
+        figma.ui.postMessage({
+          type: 'OBSERVER_FIXES_APPLIED',
+          payload: { applied, total: fixes.length },
+        });
         break;
       }
     }
