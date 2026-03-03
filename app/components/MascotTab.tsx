@@ -13,7 +13,23 @@ interface Props {
   onQuickPrompt: (prompt: string, agentId?: string, allAgents?: boolean) => void;
   onToggleObserver: (enabled: boolean) => void;
   onFix: (fixes: ObserverFix[]) => void;
+  onClear: () => void;
   customAgents?: CustomAgentConfig[];
+}
+
+function buildCopyText(observerHints: ObserverHints | null, fixes: ObserverFix[]): string {
+  if (!observerHints) return '';
+  const lines: string[] = [`Issues in "${observerHints.frameName}":`];
+  if (fixes.length > 0) {
+    for (const fix of fixes) {
+      lines.push(`- [${fix.type}] ${fix.nodeName}: ${fix.currentValue} → ${fix.suggestedValue}`);
+    }
+  } else {
+    for (const hint of observerHints.hints) {
+      lines.push(`- [${hint.type}] ${hint.message}`);
+    }
+  }
+  return lines.join('\n');
 }
 
 const FIX_ICONS: Record<string, string> = {
@@ -81,12 +97,14 @@ export default function MascotTab({
   onQuickPrompt,
   onToggleObserver,
   onFix,
+  onClear,
   customAgents,
 }: Props) {
   // Cycle through thinking lines while loading
   const [thinkingIdx, setThinkingIdx] = useState(0);
   const wasLoading = useRef(false);
   const [justFinished, setJustFinished] = useState(false);
+  const [copied, setCopied] = useState(false);
   const finishedTimer = useRef<ReturnType<typeof setTimeout>>();
 
   useEffect(() => {
@@ -116,6 +134,17 @@ export default function MascotTab({
   );
   const fixes = observerHints?.fixes ?? [];
   const hasFixes = fixes.length > 0;
+  const issueCount = hasFixes ? fixes.length : (observerHints?.hints.length ?? 0);
+  const showIssues = mood !== 'thinking' && mood !== 'done' && mood !== 'idle' && issueCount > 0;
+
+  const handleCopy = () => {
+    const text = buildCopyText(observerHints, fixes);
+    if (!text) return;
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
+  };
 
   return (
     <div className="flex-1 flex flex-col overflow-y-auto">
@@ -217,6 +246,41 @@ export default function MascotTab({
             )}
           </div>
         </div>
+
+        {/* Issue count + action icons — below bubble */}
+        {showIssues && (
+          <div className="flex items-center justify-between max-w-[280px] w-full px-1">
+            {/* Issue count — left */}
+            <span className="flex items-center gap-1 text-10 text-figma-text-tertiary">
+              <span className="w-4 h-4 rounded-full bg-figma-warning/15 text-figma-warning text-10 font-bold flex items-center justify-center shrink-0">
+                {issueCount}
+              </span>
+              issue{issueCount !== 1 ? 's' : ''}
+            </span>
+
+            {/* Copy + clear — right */}
+            <div className="flex items-center gap-0.5">
+              <button
+                onClick={handleCopy}
+                title={copied ? 'Copied!' : 'Copy issues'}
+                className="p-1 rounded text-figma-text-tertiary hover:text-figma-text-secondary hover:bg-figma-surface transition-colors"
+              >
+                {copied ? (
+                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M3.5 8.5L6.5 11.5L12.5 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                ) : (
+                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><rect x="5.5" y="5.5" width="7" height="7" rx="1" stroke="currentColor" strokeWidth="1.2"/><path d="M3.5 10.5V3.5C3.5 2.95 3.95 2.5 4.5 2.5H10.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg>
+                )}
+              </button>
+              <button
+                onClick={onClear}
+                title="Dismiss"
+                className="p-1 rounded text-figma-text-tertiary hover:text-figma-text-secondary hover:bg-figma-surface transition-colors"
+              >
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M4.5 4.5L11.5 11.5M11.5 4.5L4.5 11.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg>
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Observer toggle */}
         <button

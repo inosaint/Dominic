@@ -816,6 +816,10 @@ export default function Home() {
     sendToPlugin({ type: 'FIX_OBSERVER_HINT', payload: { fixes } });
   }, []);
 
+  const handleObserverClear = useCallback(() => {
+    setObserverHints(null);
+  }, []);
+
   return (
     <div className="relative flex flex-col h-full w-full bg-figma-bg">
       {/* Tab bar (top) */}
@@ -971,6 +975,7 @@ export default function Home() {
           onQuickPrompt={handleQuickPrompt}
           onToggleObserver={handleObserverToggle}
           onFix={handleObserverFix}
+          onClear={handleObserverClear}
           customAgents={settings.customAgents}
         />
       )}
