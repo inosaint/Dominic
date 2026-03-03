@@ -14,6 +14,8 @@ import {
   cacheToPromptContext,
   loadCachedDesignSystem,
   saveDesignSystemCache,
+  quickScanFrame,
+  DesignSystemCache,
 } from './designSystemCache';
 
 const STORAGE_KEY = 'pair-designer-settings';
@@ -50,10 +52,46 @@ function normalizeSettings(settings: Settings): Settings {
 
 figma.showUI(__html__, { width: 360, height: 640, themeColors: true });
 
+// --- Observer state ---
+let observerEnabled = false;
+let observerTimer: ReturnType<typeof setTimeout> | null = null;
+let observerCache: DesignSystemCache | null = null;
+let lastObservedFrameId: string | null = null;
+
+function runObserverCheck() {
+  if (!observerEnabled || !observerCache) return;
+  const selection = figma.currentPage.selection;
+  if (selection.length !== 1) return;
+
+  const node = selection[0];
+  // Only observe container nodes that have children
+  if (!('children' in node) || !('layoutMode' in node)) return;
+  // Skip if we already observed this frame
+  if (node.id === lastObservedFrameId) return;
+  lastObservedFrameId = node.id;
+
+  const hints = quickScanFrame(node, observerCache);
+  figma.ui.postMessage({
+    type: 'OBSERVER_HINTS',
+    payload: {
+      frameName: node.name,
+      frameId: node.id,
+      hints,
+    },
+  });
+}
+
+function scheduleObserverCheck() {
+  if (!observerEnabled) return;
+  if (observerTimer) clearTimeout(observerTimer);
+  observerTimer = setTimeout(runObserverCheck, 1200);
+}
+
 // --- Selection change listener ---
 figma.on('selectionchange', () => {
   sendSelectionData();
   checkForMarkerSelection();
+  scheduleObserverCheck();
 });
 
 function sendSelectionData() {
@@ -288,6 +326,11 @@ figma.ui.onmessage = async (msg: UIToPluginMessage) => {
         const cache = scanDesignSystem();
         await saveDesignSystemCache(cache);
         const promptContext = cacheToPromptContext(cache);
+        // Keep observer cache in sync
+        if (observerEnabled) {
+          observerCache = cache;
+          lastObservedFrameId = null;
+        }
         figma.ui.postMessage({
           type: 'DESIGN_SYSTEM_SCANNED',
           payload: { cache, promptContext },
@@ -320,6 +363,25 @@ figma.ui.onmessage = async (msg: UIToPluginMessage) => {
           type: 'DESIGN_SYSTEM_SCANNED',
           payload: { cache: imported, promptContext: promptCtx },
         });
+        break;
+      }
+
+      case 'SET_OBSERVER': {
+        observerEnabled = msg.payload.enabled;
+        if (observerEnabled) {
+          // Load or refresh the cached DS for local comparisons
+          const cached = await loadCachedDesignSystem();
+          observerCache = cached;
+          lastObservedFrameId = null;
+          // Run immediately for the current selection
+          runObserverCheck();
+        } else {
+          if (observerTimer) {
+            clearTimeout(observerTimer);
+            observerTimer = null;
+          }
+          lastObservedFrameId = null;
+        }
         break;
       }
     }

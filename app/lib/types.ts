@@ -115,3 +115,14 @@ export interface ReviewResponse {
   text?: string;
   error?: string;
 }
+
+export interface ObserverHint {
+  type: 'color' | 'spacing' | 'typography' | 'radius';
+  message: string;
+}
+
+export interface ObserverHints {
+  frameName: string;
+  frameId: string;
+  hints: ObserverHint[];
+}

@@ -381,3 +381,121 @@ export async function loadCachedDesignSystem(): Promise<DesignSystemCache | null
 export async function saveDesignSystemCache(cache: DesignSystemCache): Promise<void> {
   await figma.clientStorage.setAsync(DS_CACHE_KEY, cache);
 }
+
+// ---- Lightweight per-frame observer scan ----
+// Walks a single frame and compares its properties against the cached DS.
+// Returns local hints (no API call) about deviations.
+
+export interface ObserverHint {
+  type: 'color' | 'spacing' | 'typography' | 'radius';
+  message: string;
+}
+
+export function quickScanFrame(
+  node: SceneNode,
+  cache: DesignSystemCache
+): ObserverHint[] {
+  const hints: ObserverHint[] = [];
+  const offColors = new Set<string>();
+  const offSpacing = new Set<string>();
+  const offRadii = new Set<string>();
+  const offTypo = new Set<string>();
+
+  function walk(n: SceneNode) {
+    // Check fills
+    if ('fills' in n && n.fills !== figma.mixed) {
+      const fills = n.fills as readonly Paint[];
+      for (const f of fills) {
+        if (f.visible === false || f.type !== 'SOLID') continue;
+        const hex = rgbToHex(f.color.r, f.color.g, f.color.b);
+        if (!cache.colors.fills[hex]) {
+          offColors.add(hex);
+        }
+      }
+    }
+
+    // Check spacing (padding + gap)
+    if ('paddingTop' in n) {
+      const frame = n as FrameNode;
+      for (const val of [frame.paddingTop, frame.paddingRight, frame.paddingBottom, frame.paddingLeft]) {
+        if (val > 0 && !cache.spacing.padding[String(val)]) {
+          offSpacing.add(`${val}px padding`);
+        }
+      }
+      if ('itemSpacing' in frame && frame.itemSpacing > 0 && !cache.spacing.gap[String(frame.itemSpacing)]) {
+        offSpacing.add(`${frame.itemSpacing}px gap`);
+      }
+    }
+
+    // Check corner radius
+    if ('cornerRadius' in n) {
+      const r = (n as any).cornerRadius;
+      if (typeof r === 'number' && r > 0 && !cache.radii[String(r)]) {
+        offRadii.add(`${r}px`);
+      }
+    }
+
+    // Check typography
+    if (n.type === 'TEXT') {
+      const t = n as TextNode;
+      if (t.fontSize !== figma.mixed) {
+        const size = t.fontSize as number;
+        const family = t.fontName === figma.mixed ? null : t.fontName.family;
+        const weight = t.fontWeight === figma.mixed ? null : (t.fontWeight as number);
+        // Check if this combo exists in the cache
+        const matched = cache.typography.some(
+          (entry) =>
+            entry.size === size &&
+            (!family || entry.family === family) &&
+            (!weight || entry.weight === weight)
+        );
+        if (!matched && family) {
+          offTypo.add(`${family} ${size}px`);
+        }
+      }
+    }
+
+    // Recurse
+    if ('children' in n) {
+      for (const child of (n as ChildrenMixin).children as readonly SceneNode[]) {
+        walk(child);
+      }
+    }
+  }
+
+  walk(node);
+
+  // Build hints
+  if (offColors.size > 0) {
+    const examples = Array.from(offColors).slice(0, 3);
+    hints.push({
+      type: 'color',
+      message: `${offColors.size} off-palette color${offColors.size > 1 ? 's' : ''}: ${examples.join(', ')}${offColors.size > 3 ? '...' : ''}`,
+    });
+  }
+
+  if (offSpacing.size > 0) {
+    const examples = Array.from(offSpacing).slice(0, 3);
+    hints.push({
+      type: 'spacing',
+      message: `Non-standard spacing: ${examples.join(', ')}${offSpacing.size > 3 ? '...' : ''}`,
+    });
+  }
+
+  if (offRadii.size > 0) {
+    hints.push({
+      type: 'radius',
+      message: `Non-standard radii: ${Array.from(offRadii).join(', ')}`,
+    });
+  }
+
+  if (offTypo.size > 0) {
+    const examples = Array.from(offTypo).slice(0, 3);
+    hints.push({
+      type: 'typography',
+      message: `Off-scale type: ${examples.join(', ')}${offTypo.size > 3 ? '...' : ''}`,
+    });
+  }
+
+  return hints;
+}

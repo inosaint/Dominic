@@ -9,6 +9,7 @@ import {
   ConversationTurn,
   CustomAgentConfig,
   DesignSystemCacheData,
+  ObserverHints,
 } from './lib/types';
 import { sendToPlugin, onPluginMessage } from './lib/figmaAPI';
 import { getAgent, getAllAgents, BUILT_IN_AGENTS, CustomAgent, ReviewAgent } from './lib/agents';
@@ -22,6 +23,7 @@ import SettingsPanel from './components/SettingsPanel';
 import TabBar, { TabId } from './components/TabBar';
 import TokensPanel from './components/TokensPanel';
 import ComponentsPanel from './components/ComponentsPanel';
+import ObserverBar from './components/ObserverBar';
 
 const CHAT_MODE_ADDENDUM = `
 
@@ -127,6 +129,10 @@ export default function Home() {
   // Design system cache state
   const [dsCache, setDsCache] = useState<DesignSystemCacheData | null>(null);
   const [dsScanLoading, setDsScanLoading] = useState(false);
+
+  // Observer state
+  const [observerEnabled, setObserverEnabled] = useState(false);
+  const [observerHints, setObserverHints] = useState<ObserverHints | null>(null);
 
   // Chat mode state
   const [activeAgent, setActiveAgent] = useState<ReviewAgent | null>(null);
@@ -273,6 +279,9 @@ export default function Home() {
         if (msg.payload) {
           setDsCache(msg.payload);
         }
+      }),
+      onPluginMessage('OBSERVER_HINTS', (msg) => {
+        setObserverHints(msg.payload);
       }),
     ];
 
@@ -795,6 +804,12 @@ export default function Home() {
     sendToPlugin({ type: 'IMPORT_DESIGN_SYSTEM_CACHE', payload: { cache: data.cache } });
   }, []);
 
+  const handleObserverToggle = useCallback((enabled: boolean) => {
+    setObserverEnabled(enabled);
+    setObserverHints(null);
+    sendToPlugin({ type: 'SET_OBSERVER', payload: { enabled } });
+  }, []);
+
   return (
     <div className="relative flex flex-col h-full w-full bg-figma-bg">
       {/* Tab bar (top) */}
@@ -809,6 +824,16 @@ export default function Home() {
         <div className="shrink-0">
           <SelectionInfo selection={selection} />
         </div>
+      )}
+
+      {/* Observer bar (below selection, visible on chat tab when DS cache exists) */}
+      {activeTab === 'chat' && (
+        <ObserverBar
+          observerEnabled={observerEnabled}
+          onToggle={handleObserverToggle}
+          hints={observerHints}
+          hasCache={!!dsCache}
+        />
       )}
 
       {/* Dismissable onboarding banner */}
