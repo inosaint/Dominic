@@ -1,7 +1,7 @@
 'use client';
 
 import Mascot from './Mascot';
-import { SelectionInfo, ObserverHints, CustomAgentConfig } from '../lib/types';
+import { SelectionInfo, ObserverHints, ObserverFix, CustomAgentConfig } from '../lib/types';
 import { QUICK_PROMPTS } from '../lib/prompts';
 
 interface Props {
@@ -11,10 +11,11 @@ interface Props {
   isLoading: boolean;
   onQuickPrompt: (prompt: string, agentId?: string, allAgents?: boolean) => void;
   onToggleObserver: (enabled: boolean) => void;
+  onFix: (fixes: ObserverFix[]) => void;
   customAgents?: CustomAgentConfig[];
 }
 
-const HINT_ICONS: Record<string, string> = {
+const FIX_ICONS: Record<string, string> = {
   color: '\u25CF',
   spacing: '\u2194',
   typography: 'Aa',
@@ -43,11 +44,17 @@ function getSpeechContent(
     return { text: `Watching "${selection.name}"...`, mood: 'watching' };
   }
 
+  const fixCount = observerHints.fixes?.length ?? 0;
   if (observerHints.hints.length === 0) {
     return { text: `"${observerHints.frameName}" looks clean! No deviations from your design system.`, mood: 'clean' };
   }
 
-  return { text: `I noticed a few things in "${observerHints.frameName}":`, mood: 'alert' };
+  return {
+    text: fixCount > 0
+      ? `I found ${fixCount} thing${fixCount > 1 ? 's' : ''} to fix in "${observerHints.frameName}":`
+      : `I noticed a few things in "${observerHints.frameName}":`,
+    mood: 'alert',
+  };
 }
 
 export default function MascotTab({
@@ -57,9 +64,12 @@ export default function MascotTab({
   isLoading,
   onQuickPrompt,
   onToggleObserver,
+  onFix,
   customAgents,
 }: Props) {
   const { text, mood } = getSpeechContent(selection, observerEnabled, observerHints, isLoading);
+  const fixes = observerHints?.fixes ?? [];
+  const hasFixes = fixes.length > 0;
 
   return (
     <div className="flex-1 flex flex-col overflow-y-auto">
@@ -80,13 +90,47 @@ export default function MascotTab({
           <div className="relative bg-figma-surface border border-figma-border rounded-xl px-3 py-2.5">
             <p className="text-12 text-figma-text leading-relaxed">{text}</p>
 
-            {/* Observer hints inside speech bubble */}
-            {observerEnabled && observerHints && observerHints.hints.length > 0 && (
+            {/* Individual fixable items */}
+            {observerEnabled && hasFixes && (
+              <div className="mt-2 space-y-1.5">
+                {fixes.map((fix) => (
+                  <div key={fix.id} className="flex items-center gap-1.5 text-11">
+                    <span className="text-figma-warning shrink-0 w-3 text-center text-10">
+                      {FIX_ICONS[fix.type] || '!'}
+                    </span>
+                    <span className="text-figma-text-secondary leading-snug flex-1 min-w-0 truncate" title={`${fix.nodeName}: ${fix.currentValue} → ${fix.suggestedValue}`}>
+                      {fix.currentValue} → {fix.suggestedValue}
+                    </span>
+                    <button
+                      onClick={() => onFix([fix])}
+                      className="shrink-0 px-1.5 py-0.5 text-10 rounded bg-figma-accent/15 text-figma-accent
+                                 hover:bg-figma-accent/25 transition-colors font-medium"
+                    >
+                      Fix
+                    </button>
+                  </div>
+                ))}
+
+                {/* Fix all button */}
+                {fixes.length > 1 && (
+                  <button
+                    onClick={() => onFix(fixes)}
+                    className="w-full mt-1 py-1 text-11 rounded-lg bg-figma-accent/15 text-figma-accent
+                               hover:bg-figma-accent/25 transition-colors font-medium"
+                  >
+                    Fix all ({fixes.length})
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Fallback: summary hints when no fixes available */}
+            {observerEnabled && !hasFixes && observerHints && observerHints.hints.length > 0 && (
               <div className="mt-2 space-y-1">
                 {observerHints.hints.map((hint, i) => (
                   <div key={i} className="flex items-start gap-1.5 text-11">
                     <span className="text-figma-warning shrink-0 w-3 text-center text-10 mt-px">
-                      {HINT_ICONS[hint.type] || '!'}
+                      {FIX_ICONS[hint.type] || '!'}
                     </span>
                     <span className="text-figma-text-secondary leading-snug">
                       {hint.message}

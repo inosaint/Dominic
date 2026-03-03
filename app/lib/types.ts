@@ -121,8 +121,20 @@ export interface ObserverHint {
   message: string;
 }
 
+export interface ObserverFix {
+  id: string;
+  type: 'color' | 'spacing' | 'typography' | 'radius';
+  nodeId: string;
+  nodeName: string;
+  property: string;
+  currentValue: string;
+  suggestedValue: string;
+  fixData: object;
+}
+
 export interface ObserverHints {
   frameName: string;
   frameId: string;
   hints: ObserverHint[];
+  fixes?: ObserverFix[];
 }

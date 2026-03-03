@@ -391,11 +391,65 @@ export interface ObserverHint {
   message: string;
 }
 
+export interface ObserverFix {
+  id: string;            // unique id for this fix
+  type: 'color' | 'spacing' | 'typography' | 'radius';
+  nodeId: string;
+  nodeName: string;
+  property: string;      // e.g. 'fill', 'paddingTop', 'cornerRadius', 'fontSize'
+  currentValue: string;  // human-readable current value
+  suggestedValue: string; // human-readable suggested value
+  fixData: object;       // opaque data the plugin uses to apply the fix
+}
+
+// ---- Nearest-token helpers ----
+
+function nearestColor(hex: string, palette: Record<string, ColorEntry>): string | null {
+  // Simple RGB distance — find closest palette color
+  const parse = (h: string) => ({
+    r: parseInt(h.slice(1, 3), 16),
+    g: parseInt(h.slice(3, 5), 16),
+    b: parseInt(h.slice(5, 7), 16),
+  });
+  const c = parse(hex);
+  let best: string | null = null;
+  let bestDist = Infinity;
+  for (const paletteHex of Object.keys(palette)) {
+    const p = parse(paletteHex);
+    const dist = Math.abs(c.r - p.r) + Math.abs(c.g - p.g) + Math.abs(c.b - p.b);
+    if (dist < bestDist) {
+      bestDist = dist;
+      best = paletteHex;
+    }
+  }
+  return best;
+}
+
+function nearestNumber(val: number, allowed: Record<string, number>): number | null {
+  const nums = Object.keys(allowed).map(Number);
+  if (nums.length === 0) return null;
+  let best = nums[0];
+  let bestDist = Math.abs(val - best);
+  for (const n of nums) {
+    const d = Math.abs(val - n);
+    if (d < bestDist) { bestDist = d; best = n; }
+  }
+  return best;
+}
+
+export interface QuickScanResult {
+  hints: ObserverHint[];
+  fixes: ObserverFix[];
+}
+
+let fixCounter = 0;
+
 export function quickScanFrame(
   node: SceneNode,
   cache: DesignSystemCache
-): ObserverHint[] {
+): QuickScanResult {
   const hints: ObserverHint[] = [];
+  const fixes: ObserverFix[] = [];
   const offColors = new Set<string>();
   const offSpacing = new Set<string>();
   const offRadii = new Set<string>();
@@ -405,11 +459,26 @@ export function quickScanFrame(
     // Check fills
     if ('fills' in n && n.fills !== figma.mixed) {
       const fills = n.fills as readonly Paint[];
-      for (const f of fills) {
+      for (let fi = 0; fi < fills.length; fi++) {
+        const f = fills[fi];
         if (f.visible === false || f.type !== 'SOLID') continue;
         const hex = rgbToHex(f.color.r, f.color.g, f.color.b);
         if (!cache.colors.fills[hex]) {
           offColors.add(hex);
+          const nearest = nearestColor(hex, cache.colors.fills);
+          if (nearest) {
+            const token = cache.colors.fills[nearest].token;
+            fixes.push({
+              id: `fix-${++fixCounter}`,
+              type: 'color',
+              nodeId: n.id,
+              nodeName: n.name,
+              property: 'fill',
+              currentValue: hex,
+              suggestedValue: token ? `${token} (${nearest})` : nearest,
+              fixData: { fillIndex: fi, hex: nearest },
+            });
+          }
         }
       }
     }
@@ -417,13 +486,42 @@ export function quickScanFrame(
     // Check spacing (padding + gap)
     if ('paddingTop' in n) {
       const frame = n as FrameNode;
-      for (const val of [frame.paddingTop, frame.paddingRight, frame.paddingBottom, frame.paddingLeft]) {
+      const padProps = ['paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft'] as const;
+      const padVals = [frame.paddingTop, frame.paddingRight, frame.paddingBottom, frame.paddingLeft];
+      for (let i = 0; i < padProps.length; i++) {
+        const val = padVals[i];
         if (val > 0 && !cache.spacing.padding[String(val)]) {
           offSpacing.add(`${val}px padding`);
+          const nearest = nearestNumber(val, cache.spacing.padding);
+          if (nearest !== null) {
+            fixes.push({
+              id: `fix-${++fixCounter}`,
+              type: 'spacing',
+              nodeId: n.id,
+              nodeName: n.name,
+              property: padProps[i],
+              currentValue: `${val}px`,
+              suggestedValue: `${nearest}px`,
+              fixData: { prop: padProps[i], value: nearest },
+            });
+          }
         }
       }
       if ('itemSpacing' in frame && frame.itemSpacing > 0 && !cache.spacing.gap[String(frame.itemSpacing)]) {
         offSpacing.add(`${frame.itemSpacing}px gap`);
+        const nearest = nearestNumber(frame.itemSpacing, cache.spacing.gap);
+        if (nearest !== null) {
+          fixes.push({
+            id: `fix-${++fixCounter}`,
+            type: 'spacing',
+            nodeId: n.id,
+            nodeName: n.name,
+            property: 'itemSpacing',
+            currentValue: `${frame.itemSpacing}px`,
+            suggestedValue: `${nearest}px`,
+            fixData: { prop: 'itemSpacing', value: nearest },
+          });
+        }
       }
     }
 
@@ -432,6 +530,19 @@ export function quickScanFrame(
       const r = (n as any).cornerRadius;
       if (typeof r === 'number' && r > 0 && !cache.radii[String(r)]) {
         offRadii.add(`${r}px`);
+        const nearest = nearestNumber(r, cache.radii);
+        if (nearest !== null) {
+          fixes.push({
+            id: `fix-${++fixCounter}`,
+            type: 'radius',
+            nodeId: n.id,
+            nodeName: n.name,
+            property: 'cornerRadius',
+            currentValue: `${r}px`,
+            suggestedValue: `${nearest}px`,
+            fixData: { prop: 'cornerRadius', value: nearest },
+          });
+        }
       }
     }
 
@@ -442,7 +553,6 @@ export function quickScanFrame(
         const size = t.fontSize as number;
         const family = t.fontName === figma.mixed ? null : t.fontName.family;
         const weight = t.fontWeight === figma.mixed ? null : (t.fontWeight as number);
-        // Check if this combo exists in the cache
         const matched = cache.typography.some(
           (entry) =>
             entry.size === size &&
@@ -451,6 +561,27 @@ export function quickScanFrame(
         );
         if (!matched && family) {
           offTypo.add(`${family} ${size}px`);
+          // Find nearest font size in cache with same family
+          let bestEntry = cache.typography[0];
+          let bestDist = Infinity;
+          for (const entry of cache.typography) {
+            if (entry.family === family) {
+              const d = Math.abs(entry.size - size);
+              if (d < bestDist) { bestDist = d; bestEntry = entry; }
+            }
+          }
+          if (bestEntry) {
+            fixes.push({
+              id: `fix-${++fixCounter}`,
+              type: 'typography',
+              nodeId: n.id,
+              nodeName: n.name,
+              property: 'fontSize',
+              currentValue: `${size}px`,
+              suggestedValue: `${bestEntry.size}px (w${bestEntry.weight})`,
+              fixData: { size: bestEntry.size, weight: bestEntry.weight },
+            });
+          }
         }
       }
     }
@@ -465,7 +596,7 @@ export function quickScanFrame(
 
   walk(node);
 
-  // Build hints
+  // Build summary hints (same as before)
   if (offColors.size > 0) {
     const examples = Array.from(offColors).slice(0, 3);
     hints.push({
@@ -497,5 +628,5 @@ export function quickScanFrame(
     });
   }
 
-  return hints;
+  return { hints, fixes };
 }

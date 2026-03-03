@@ -10,6 +10,7 @@ import {
   CustomAgentConfig,
   DesignSystemCacheData,
   ObserverHints,
+  ObserverFix,
 } from './lib/types';
 import { sendToPlugin, onPluginMessage } from './lib/figmaAPI';
 import { getAgent, getAllAgents, BUILT_IN_AGENTS, CustomAgent, ReviewAgent } from './lib/agents';
@@ -813,6 +814,10 @@ export default function Home() {
     sendToPlugin({ type: 'SET_OBSERVER', payload: { enabled } });
   }, []);
 
+  const handleObserverFix = useCallback((fixes: ObserverFix[]) => {
+    sendToPlugin({ type: 'FIX_OBSERVER_HINT', payload: { fixes } });
+  }, []);
+
   return (
     <div className="relative flex flex-col h-full w-full bg-figma-bg">
       {/* Tab bar (top) */}
@@ -967,6 +972,7 @@ export default function Home() {
           isLoading={isLoading}
           onQuickPrompt={handleQuickPrompt}
           onToggleObserver={handleObserverToggle}
+          onFix={handleObserverFix}
           customAgents={settings.customAgents}
         />
       )}

@@ -907,8 +907,44 @@ ${item.feedback}`;
   async function saveDesignSystemCache(cache) {
     await figma.clientStorage.setAsync(DS_CACHE_KEY, cache);
   }
+  function nearestColor(hex, palette) {
+    const parse = (h) => ({
+      r: parseInt(h.slice(1, 3), 16),
+      g: parseInt(h.slice(3, 5), 16),
+      b: parseInt(h.slice(5, 7), 16)
+    });
+    const c = parse(hex);
+    let best = null;
+    let bestDist = Infinity;
+    for (const paletteHex of Object.keys(palette)) {
+      const p = parse(paletteHex);
+      const dist = Math.abs(c.r - p.r) + Math.abs(c.g - p.g) + Math.abs(c.b - p.b);
+      if (dist < bestDist) {
+        bestDist = dist;
+        best = paletteHex;
+      }
+    }
+    return best;
+  }
+  function nearestNumber(val, allowed) {
+    const nums = Object.keys(allowed).map(Number);
+    if (nums.length === 0)
+      return null;
+    let best = nums[0];
+    let bestDist = Math.abs(val - best);
+    for (const n of nums) {
+      const d = Math.abs(val - n);
+      if (d < bestDist) {
+        bestDist = d;
+        best = n;
+      }
+    }
+    return best;
+  }
+  var fixCounter = 0;
   function quickScanFrame(node, cache) {
     const hints = [];
+    const fixes = [];
     const offColors = /* @__PURE__ */ new Set();
     const offSpacing = /* @__PURE__ */ new Set();
     const offRadii = /* @__PURE__ */ new Set();
@@ -916,30 +952,87 @@ ${item.feedback}`;
     function walk(n) {
       if ("fills" in n && n.fills !== figma.mixed) {
         const fills = n.fills;
-        for (const f of fills) {
+        for (let fi = 0; fi < fills.length; fi++) {
+          const f = fills[fi];
           if (f.visible === false || f.type !== "SOLID")
             continue;
           const hex = rgbToHex2(f.color.r, f.color.g, f.color.b);
           if (!cache.colors.fills[hex]) {
             offColors.add(hex);
+            const nearest = nearestColor(hex, cache.colors.fills);
+            if (nearest) {
+              const token = cache.colors.fills[nearest].token;
+              fixes.push({
+                id: `fix-${++fixCounter}`,
+                type: "color",
+                nodeId: n.id,
+                nodeName: n.name,
+                property: "fill",
+                currentValue: hex,
+                suggestedValue: token ? `${token} (${nearest})` : nearest,
+                fixData: { fillIndex: fi, hex: nearest }
+              });
+            }
           }
         }
       }
       if ("paddingTop" in n) {
         const frame = n;
-        for (const val of [frame.paddingTop, frame.paddingRight, frame.paddingBottom, frame.paddingLeft]) {
+        const padProps = ["paddingTop", "paddingRight", "paddingBottom", "paddingLeft"];
+        const padVals = [frame.paddingTop, frame.paddingRight, frame.paddingBottom, frame.paddingLeft];
+        for (let i = 0; i < padProps.length; i++) {
+          const val = padVals[i];
           if (val > 0 && !cache.spacing.padding[String(val)]) {
             offSpacing.add(`${val}px padding`);
+            const nearest = nearestNumber(val, cache.spacing.padding);
+            if (nearest !== null) {
+              fixes.push({
+                id: `fix-${++fixCounter}`,
+                type: "spacing",
+                nodeId: n.id,
+                nodeName: n.name,
+                property: padProps[i],
+                currentValue: `${val}px`,
+                suggestedValue: `${nearest}px`,
+                fixData: { prop: padProps[i], value: nearest }
+              });
+            }
           }
         }
         if ("itemSpacing" in frame && frame.itemSpacing > 0 && !cache.spacing.gap[String(frame.itemSpacing)]) {
           offSpacing.add(`${frame.itemSpacing}px gap`);
+          const nearest = nearestNumber(frame.itemSpacing, cache.spacing.gap);
+          if (nearest !== null) {
+            fixes.push({
+              id: `fix-${++fixCounter}`,
+              type: "spacing",
+              nodeId: n.id,
+              nodeName: n.name,
+              property: "itemSpacing",
+              currentValue: `${frame.itemSpacing}px`,
+              suggestedValue: `${nearest}px`,
+              fixData: { prop: "itemSpacing", value: nearest }
+            });
+          }
         }
       }
       if ("cornerRadius" in n) {
         const r = n.cornerRadius;
         if (typeof r === "number" && r > 0 && !cache.radii[String(r)]) {
           offRadii.add(`${r}px`);
+          const nearest = nearestNumber(r, cache.radii);
+          if (nearest !== null) {
+            fixes.push({
+              id: `fix-${++fixCounter}`,
+              type: "radius",
+              nodeId: n.id,
+              nodeName: n.name,
+              property: "cornerRadius",
+              currentValue: `${r}px`,
+              suggestedValue: `${nearest}px`,
+              fixData: { prop: "cornerRadius", value: nearest }
+            });
+          }
         }
       }
       if (n.type === "TEXT") {
@@ -953,6 +1046,29 @@ ${item.feedback}`;
           );
           if (!matched && family) {
             offTypo.add(`${family} ${size}px`);
+            let bestEntry = cache.typography[0];
+            let bestDist = Infinity;
+            for (const entry of cache.typography) {
+              if (entry.family === family) {
+                const d = Math.abs(entry.size - size);
+                if (d < bestDist) {
+                  bestDist = d;
+                  bestEntry = entry;
+                }
+              }
+            }
+            if (bestEntry) {
+              fixes.push({
+                id: `fix-${++fixCounter}`,
+                type: "typography",
+                nodeId: n.id,
+                nodeName: n.name,
+                property: "fontSize",
+                currentValue: `${size}px`,
+                suggestedValue: `${bestEntry.size}px (w${bestEntry.weight})`,
+                fixData: { size: bestEntry.size, weight: bestEntry.weight }
+              });
+            }
           }
         }
       }
@@ -990,7 +1106,7 @@ ${item.feedback}`;
         message: `Off-scale type: ${examples.join(", ")}${offTypo.size > 3 ? "..." : ""}`
       });
     }
-    return hints;
+    return { hints, fixes };
   }
 
   // plugin/code.ts
@@ -1046,13 +1162,14 @@ ${item.feedback}`;
     if (node.id === lastObservedFrameId)
       return;
     lastObservedFrameId = node.id;
-    const hints = quickScanFrame(node, observerCache);
+    const result = quickScanFrame(node, observerCache);
     figma.ui.postMessage({
       type: "OBSERVER_HINTS",
       payload: {
         frameName: node.name,
         frameId: node.id,
-        hints
+        hints: result.hints,
+        fixes: result.fixes
       }
     });
   }
@@ -1115,6 +1232,7 @@ ${item.feedback}`;
     }
   }
   figma.ui.onmessage = async (msg) => {
+    var _a;
     try {
       switch (msg.type) {
         case "GET_SELECTION": {
@@ -1315,6 +1433,71 @@ ${item.feedback}`;
             }
             lastObservedFrameId = null;
           }
+          break;
+        }
+        case "FIX_OBSERVER_HINT": {
+          const { fixes } = msg.payload;
+          let applied = 0;
+          for (const fix of fixes) {
+            try {
+              const target = await figma.getNodeByIdAsync(fix.nodeId);
+              if (!target)
+                continue;
+              const data = fix.fixData;
+              switch (fix.type) {
+                case "color": {
+                  if ("fills" in target && target.fills !== figma.mixed) {
+                    const fills = [...target.fills];
+                    const idx = (_a = data.fillIndex) != null ? _a : 0;
+                    if (idx < fills.length && fills[idx].type === "SOLID") {
+                      const hex = data.hex;
+                      const r = parseInt(hex.slice(1, 3), 16) / 255;
+                      const g = parseInt(hex.slice(3, 5), 16) / 255;
+                      const b = parseInt(hex.slice(5, 7), 16) / 255;
+                      fills[idx] = __spreadProps(__spreadValues({}, fills[idx]), { color: { r, g, b } });
+                      target.fills = fills;
+                      applied++;
+                    }
+                  }
+                  break;
+                }
+                case "spacing": {
+                  const prop = data.prop;
+                  const value = data.value;
+                  if (prop in target) {
+                    target[prop] = value;
+                    applied++;
+                  }
+                  break;
+                }
+                case "radius": {
+                  if ("cornerRadius" in target) {
+                    target.cornerRadius = data.value;
+                    applied++;
+                  }
+                  break;
+                }
+                case "typography": {
+                  if (target.type === "TEXT") {
+                    const textNode = target;
+                    await figma.loadFontAsync(
+                      textNode.fontName === figma.mixed ? { family: "Inter", style: "Regular" } : textNode.fontName
+                    );
+                    textNode.fontSize = data.size;
+                    applied++;
+                  }
+                  break;
+                }
+              }
+            } catch (e) {
+            }
+          }
+          lastObservedFrameId = null;
+          runObserverCheck();
+          figma.ui.postMessage({
+            type: "OBSERVER_FIXES_APPLIED",
+            payload: { applied, total: fixes.length }
+          });
           break;
         }
       }

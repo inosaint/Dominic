@@ -70,13 +70,14 @@ function runObserverCheck() {
   if (node.id === lastObservedFrameId) return;
   lastObservedFrameId = node.id;
 
-  const hints = quickScanFrame(node, observerCache);
+  const result = quickScanFrame(node, observerCache);
   figma.ui.postMessage({
     type: 'OBSERVER_HINTS',
     payload: {
       frameName: node.name,
       frameId: node.id,
-      hints,
+      hints: result.hints,
+      fixes: result.fixes,
     },
   });
 }
@@ -382,6 +383,78 @@ figma.ui.onmessage = async (msg: UIToPluginMessage) => {
           }
           lastObservedFrameId = null;
         }
+        break;
+      }
+
+      case 'FIX_OBSERVER_HINT': {
+        const { fixes } = msg.payload;
+        let applied = 0;
+        for (const fix of fixes) {
+          try {
+            const target = await figma.getNodeByIdAsync(fix.nodeId);
+            if (!target) continue;
+            const data = fix.fixData as any;
+
+            switch (fix.type) {
+              case 'color': {
+                if ('fills' in target && target.fills !== figma.mixed) {
+                  const fills = [...(target.fills as Paint[])];
+                  const idx = data.fillIndex ?? 0;
+                  if (idx < fills.length && fills[idx].type === 'SOLID') {
+                    const hex = data.hex as string;
+                    const r = parseInt(hex.slice(1, 3), 16) / 255;
+                    const g = parseInt(hex.slice(3, 5), 16) / 255;
+                    const b = parseInt(hex.slice(5, 7), 16) / 255;
+                    fills[idx] = { ...fills[idx], color: { r, g, b } } as SolidPaint;
+                    (target as GeometryMixin).fills = fills;
+                    applied++;
+                  }
+                }
+                break;
+              }
+              case 'spacing': {
+                const prop = data.prop as string;
+                const value = data.value as number;
+                if (prop in target) {
+                  (target as any)[prop] = value;
+                  applied++;
+                }
+                break;
+              }
+              case 'radius': {
+                if ('cornerRadius' in target) {
+                  (target as any).cornerRadius = data.value as number;
+                  applied++;
+                }
+                break;
+              }
+              case 'typography': {
+                if (target.type === 'TEXT') {
+                  const textNode = target as TextNode;
+                  await figma.loadFontAsync(
+                    textNode.fontName === figma.mixed
+                      ? { family: 'Inter', style: 'Regular' }
+                      : textNode.fontName
+                  );
+                  textNode.fontSize = data.size as number;
+                  applied++;
+                }
+                break;
+              }
+            }
+          } catch {
+            // Skip nodes that can't be fixed (e.g. deleted)
+          }
+        }
+
+        // Re-run observer to refresh hints after fixes
+        lastObservedFrameId = null;
+        runObserverCheck();
+
+        figma.ui.postMessage({
+          type: 'OBSERVER_FIXES_APPLIED',
+          payload: { applied, total: fixes.length },
+        });
         break;
       }
     }
