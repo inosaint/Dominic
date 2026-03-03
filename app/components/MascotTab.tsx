@@ -247,18 +247,22 @@ export default function MascotTab({
           </div>
         </div>
 
-        {/* Issue count + action icons — below bubble */}
-        {showIssues && (
-          <div className="flex items-center justify-between max-w-[280px] w-full px-1">
-            {/* Issue count — left */}
-            <span className="flex items-center gap-1 text-10 text-figma-text-tertiary">
-              <span className="w-4 h-4 rounded-full bg-figma-warning/15 text-figma-warning text-10 font-bold flex items-center justify-center shrink-0">
-                {issueCount}
-              </span>
-              issue{issueCount !== 1 ? 's' : ''}
-            </span>
+        {/* Observer toggle + action icons — below bubble */}
+        <div className="flex items-center justify-between max-w-[280px] w-full px-1">
+          {/* Observer toggle — left */}
+          <button
+            onClick={() => onToggleObserver(!observerEnabled)}
+            className={`text-11 px-3 py-1 rounded-full border transition-colors
+              ${observerEnabled
+                ? 'border-figma-accent text-figma-accent bg-figma-accent/10'
+                : 'border-figma-border text-figma-text-tertiary hover:text-figma-text-secondary hover:border-figma-text-secondary'
+              }`}
+          >
+            {observerEnabled ? 'Observer on' : 'Turn on observer'}
+          </button>
 
-            {/* Copy + clear — right */}
+          {/* Copy + clear — right (only when issues visible) */}
+          {showIssues && (
             <div className="flex items-center gap-0.5">
               <button
                 onClick={handleCopy}
@@ -279,20 +283,8 @@ export default function MascotTab({
                 <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M4.5 4.5L11.5 11.5M11.5 4.5L4.5 11.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg>
               </button>
             </div>
-          </div>
-        )}
-
-        {/* Observer toggle */}
-        <button
-          onClick={() => onToggleObserver(!observerEnabled)}
-          className={`text-11 px-3 py-1 rounded-full border transition-colors
-            ${observerEnabled
-              ? 'border-figma-accent text-figma-accent bg-figma-accent/10'
-              : 'border-figma-border text-figma-text-tertiary hover:text-figma-text-secondary hover:border-figma-text-secondary'
-            }`}
-        >
-          {observerEnabled ? 'Observer on' : 'Turn on observer'}
-        </button>
+          )}
+        </div>
       </div>
 
       {/* Quick prompts at bottom */}
