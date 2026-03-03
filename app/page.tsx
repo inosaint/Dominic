@@ -24,6 +24,7 @@ import TabBar, { TabId } from './components/TabBar';
 import TokensPanel from './components/TokensPanel';
 import ComponentsPanel from './components/ComponentsPanel';
 import ObserverBar from './components/ObserverBar';
+import MascotTab from './components/MascotTab';
 
 const CHAT_MODE_ADDENDUM = `
 
@@ -123,7 +124,7 @@ export default function Home() {
   const [highlightedMarker, setHighlightedMarker] = useState<number | null>(null);
 
   // Tab navigation
-  const [activeTab, setActiveTab] = useState<TabId>('chat');
+  const [activeTab, setActiveTab] = useState<TabId>('mascot');
   const [bannerDismissed, setBannerDismissed] = useState(false);
 
   // Design system cache state
@@ -750,6 +751,8 @@ export default function Home() {
   // --- Handlers ---
   const handleQuickPrompt = useCallback(
     (prompt: string, agentId?: string, allAgents?: boolean) => {
+      // Switch to chat tab so user sees the conversation
+      setActiveTab('chat');
       if (allAgents) {
         runAllAgents(prompt);
       } else {
@@ -819,8 +822,8 @@ export default function Home() {
         hasCache={!!dsCache}
       />
 
-      {/* Selection info (below tabs, visible on all tabs except settings) */}
-      {activeTab !== 'settings' && (
+      {/* Selection info (below tabs, visible on chat/tokens/components) */}
+      {activeTab !== 'settings' && activeTab !== 'mascot' && (
         <div className="shrink-0">
           <SelectionInfo selection={selection} />
         </div>
@@ -954,6 +957,18 @@ export default function Home() {
             )}
           </form>
         </>
+      )}
+
+      {activeTab === 'mascot' && (
+        <MascotTab
+          selection={selection}
+          observerHints={observerHints}
+          observerEnabled={observerEnabled}
+          isLoading={isLoading}
+          onQuickPrompt={handleQuickPrompt}
+          onToggleObserver={handleObserverToggle}
+          customAgents={settings.customAgents}
+        />
       )}
 
       {activeTab === 'tokens' && (
